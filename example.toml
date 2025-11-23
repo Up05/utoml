@@ -1,0 +1,19 @@
+value = 1.124e9
+
+# comment for explained
+# second comment for explained
+explained = true # third comment for explained
+
+just_write_the_fucking_namespaces = TRUE
+
+dates_are_toml_like = 2025-11-22 # and commentable
+
+keybinds = [ "ctrl shift alt      super   L",
+             "mod  shift option-r command L" ]
+            
+multiline = """
+some
+text
+""" 
+
+warning = 'not a string
