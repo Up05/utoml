@@ -4,8 +4,8 @@ import "core:fmt"
 
 SPECIAL_SYMBOLS : [] rune = { '=', ',', '#', '\'', '"', ' ', '\t', '\v', '\r', '\n' }
 WHITESPACE      : [] rune = { ' ', '\t', '\v', '\r' }
-
-SYNTAX_SYMBOLS : [] rune = { '=', ',', '#', '\'', '"', '\n' }
+NONPRINTABLES   : [] rune = { ' ', '\t', '\v', '\r', '\n', '#' }
+SYNTAX_SYMBOLS  : [] rune = { '=', ',', '#', '\'', '"', '\n' }
 
 Tokens :: [dynamic] string
 

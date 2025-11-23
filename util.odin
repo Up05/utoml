@@ -5,13 +5,15 @@ import "core:mem"
 import "core:math"
 import "core:slice"
 import "core:strings"
+import "core:strconv"
 import "core:unicode/utf8"
 import os "core:os/os2"
 
 Allocator :: mem.Allocator
 Builder   :: strings.Builder
 
-exit :: os.exit
+exit             :: os.exit
+absolute_path    :: os.get_absolute_path
 read_entire_file :: os.read_entire_file_from_path
 
 sort_by :: slice.sort_by
@@ -19,10 +21,14 @@ sort_by :: slice.sort_by
 rune_size   :: utf8.rune_size
 decode_rune :: utf8.decode_rune_in_string
 
+parse_f64 :: strconv.parse_f64
+parse_int :: strconv.parse_int
+
 make_builder :: strings.builder_make
 write_string :: strings.write_string
 write_rune   :: strings.write_rune
 
+equali :: strings.equal_fold
 prefix :: strings.starts_with
 suffix :: strings.ends_with
 count  :: strings.count
@@ -31,10 +37,18 @@ last_index_byte :: strings.last_index_byte
 split_iterator  :: strings.split_iterator
 split           :: strings.split
 
-find      :: proc(a: string, b: string) -> int { i := strings.index(a, b); return i if i != -1 else len(a) }
-find_rune :: proc(a: string, b: rune)   -> int { i := strings.index_rune(a, b); return i if i != -1 else len(a) }
-find_byte :: proc(a: string, b: byte)   -> int { i := strings.index_byte(a, b); return i if i != -1 else len(a) }
+@private
+first_rune :: proc(s: string) -> rune {
+    if len(s) == 0 { return 0 }
+    r, n := decode_rune(s)
+    return r
+}
 
+@private find      :: proc(a: string, b: string) -> int { i := strings.index(a, b); return i if i != -1 else len(a) }
+@private find_rune :: proc(a: string, b: rune)   -> int { i := strings.index_rune(a, b); return i if i != -1 else len(a) }
+@private find_byte :: proc(a: string, b: byte)   -> int { i := strings.index_byte(a, b); return i if i != -1 else len(a) }
+
+@private
 find_any :: proc(a: string, B: [] rune) -> int {
     #no_bounds_check for r, i in a {
         #no_bounds_check for b in B {
@@ -44,10 +58,12 @@ find_any :: proc(a: string, B: [] rune) -> int {
     return len(a)
 }
 
+@private
 empty :: proc(text: ^string) -> bool {
     return text == nil || len(text^) == 0
 }
 
+@private
 contains :: proc(array: [] $T, element: T) -> bool {
     #no_bounds_check for item in array {
         if item == element do return true
@@ -55,6 +71,13 @@ contains :: proc(array: [] $T, element: T) -> bool {
     return false
 }
 
+@private
+any_of :: proc(a: $T, B: ..T) -> bool {
+    for b in B do if a == b do return true
+    return false
+}
+
+@private
 digits_in :: proc(number: int) -> int {
     return int(math.log10(f64(number))) + 1
 }
@@ -100,6 +123,7 @@ escape_ascii :: proc(raw: string, allocator: Allocator) -> string {
     return string(escaped)
 }
 
+@private
 to_hex_digit :: proc(digit: byte) -> byte {
     assert(digit < 16)
     if digit < 10 { return digit + '0' }

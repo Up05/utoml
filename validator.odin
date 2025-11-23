@@ -3,27 +3,28 @@ package utoml
 import "core:fmt"
 
 Validator :: struct {
-    allocator : Allocator,
-    handler   : proc(info: ^Validator),
+    allocator : Allocator,              // used for all internal allocations, may be free_all-ed
+    handler   : proc(info: ^Validator), // error handler function, see: default_tokenizer_handler 
 
-    message_short : string,
-    message_long  : Builder,
+    message_short : string,  // single line constant error message
+    message_long  : Builder, // multiline error details, code snippets & suggestions
 
-    full   : string,
-    line   : string,
-    text   : string,
+    full   : string, // full input text (from the file)
+    line   : string, // full line where error occurred
+    text   : string, // token the error was found in
 
-    file   : string,
-    row    : int,
-    column : int,
+    file   : string, // may be null, (absolute file path)   TODO it's not abs right now...
+    row    : int,    // bad token's starting line number
+    column : int,    // bad token's starting column 
     
-    unique : bool,
-    halt   : bool,
-    type   : enum u8 { Error, Warning },
+    unique : bool,   // whether this error is first of its kind
+    halt   : bool,   // true in last error/warning callback when there are errors, default handlers call os.exit here
+    type   : enum u8 { Error, Warning }, // warnings are non-fatal & ordered after errors
 }
 
-MAX_ERRORS :: 16
+MAX_ERRORS :: 16 // max errors to be "shown on screen" / given to error handlers
 
+// TODO TOTALLY REFACTOR WITH THE NEW `IO` STRUCT
 validate :: proc(custom_validator: ^Validator = nil) -> (ok: bool) {
     default_validator : Validator = {
         allocator = context.temp_allocator,
@@ -34,6 +35,8 @@ validate :: proc(custom_validator: ^Validator = nil) -> (ok: bool) {
     results: [dynamic] Validator
     defer delete(results)
 
+    // ------------------------------- MISPLACED -------------------------------
+
     base.file = "/home/ulti/src/utoml/example.toml"
     text, err := read_entire_file("example.toml", context.allocator)
     base.full = string(text)
@@ -41,6 +44,7 @@ validate :: proc(custom_validator: ^Validator = nil) -> (ok: bool) {
 
     validate_tokenizer(base, tokens, &results)
     
+    // ------------------------------- ENDING -------------------------------
     sort_by(results[:], proc(a, b: Validator) -> bool { return a.type == .Error })
     has_errors := len(results) > 0 && results[0].type == .Error
 
@@ -50,9 +54,13 @@ validate :: proc(custom_validator: ^Validator = nil) -> (ok: bool) {
         result.handler(&result)
     }
 
+    // ------------------------------- MISPLACED2 -------------------------------
+    // TODO parse_tokens(tokens)
+
     return !has_errors
 }
 
+@private
 validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Validator) {
     lines := split(base.full, "\n")
     defer delete(lines)
@@ -94,16 +102,16 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
             write_string(&this.message_long, "Please add a new line character after the '\\r': \n")
             add_example_code(&this, "", index_byte(this.line, '\r'))
             append(out, this)
-
         }
-        
     }
 }
 
+// call get_long_message_line_type(validator.long_message split by lines) 
+// to get this for your error handler
 LineType :: enum {
-    Normal,
-    Code,
-    Caret,
+    Normal, // for example, suggestion text
+    Code,   // the code snippet
+    Caret,  // the lil' ^~~~~~^ line below .Code 
 }
 
 get_long_message_line_type :: proc(line: string) -> LineType {
@@ -113,7 +121,7 @@ get_long_message_line_type :: proc(line: string) -> LineType {
 }
 
 default_tokenizer_handler :: proc(info: ^Validator) {
-    // I know about core:terminal/ansi and I do not care.
+    // core:terminal/ansi is technically correct and practically useless
     start := "\x1b[31mError:" if info.type == .Error else "\x1b[33mWarning:" 
 
     fmt.println()
@@ -188,3 +196,24 @@ stray_carriage_return :: proc(token: string) -> bool {
     }
     return false
 }
+
+
+
+
+@private 
+check_nil_io :: proc(io: ^IO, caller := #caller_location) {
+    EXAMPLE :: 
+        "    main :: proc() {\n" +
+        "        io: IO\n" +
+        "        parse_userfile(&io, \"example1.toml\")\n" +
+        "        parse_userfile(&io, \"example2.toml\")\n" +
+        "    }"
+
+    fmt.assertf(io != nil, 
+        "\n\x1b[31mUTOML ERROR:\x1b[0m io cannot be nil\n" +
+        "\x1b[37mutoml mutates user-owned IO objects.\n" + 
+        "How are you planning to get the result of %s?\x1b[0m\n" + 
+        "Example:\n\x1b[33m%s\x1b[0m", caller.procedure, EXAMPLE)
+}
+
+
