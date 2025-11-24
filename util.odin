@@ -33,6 +33,7 @@ equali :: strings.equal_fold
 prefix :: strings.starts_with
 suffix :: strings.ends_with
 count  :: strings.count
+index  :: strings.index
 index_byte :: strings.index_byte
 last_index_byte :: strings.last_index_byte
 split_iterator  :: strings.split_iterator

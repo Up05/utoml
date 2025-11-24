@@ -16,6 +16,25 @@ Why?
 
 Because they are annoying.
 
+## Sections
+
+```
+[table]
+they = "exists"
+
+[and]
+work = [ "normally", "-ish" ]
+```
+
+## Key-value pairs
+
+Keys can, technically, be whatever...
+This makes the statement "utoml is toml subset" false, but also:
+```
+= = 5 # is totally valid
+# so...
+```
+
 ## Text (strings)
 
 There are 2 types of text:

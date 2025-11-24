@@ -52,34 +52,65 @@ digest_validator :: proc(results: [] Validator) -> (ok: bool) {
 
 @private
 validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Validator) {
-    lines := split(base.full, "\n")
+    lines  := split(base.full, "\n")
     defer delete(lines)
+
+    ComplexType :: enum u8 { None, Array, Table }
+    the_stack := make([dynamic] ComplexType, context.allocator)
+    append(&the_stack, ComplexType.None)
+    defer delete(the_stack)
 
     row: int
     for token, i in tokens {
-        defer row += count(tokens[i], "\n")
+        onwards := tokens[i:]
+        next := peek(&onwards, 1)^
 
         this := base^
         this.text = token
-        this.type = .Error
         this.row  = row + 1
         this.line = lines[row] // Later, maybe handle the OOB...
         this.column = get_column(tokens[:i+1])
-
+        defer row += count(tokens[i], "\n")
+        
+        defer { // state calculations
+            if token == "[" do append_elem(&the_stack, ComplexType.Array)
+            if token == "{" do append_elem(&the_stack, ComplexType.Table)
+            if token == "]" do pop(&the_stack) // technically incorrect
+            if token == "}" do pop(&the_stack) // but has better behaviour... :) 
+        }
+        
+        if token == "=" && back(the_stack) == .Array {
+            this.unique = check_uniqueness() // careful! this uses #caller_location
+            this.message_short = "Cannot assign inside a list"
+            add_long_message(&this, "So what are we doing here exactly?")
+            add_example_code(&this, "", "=")
+            append(out, this)
+        }
+        if token == "]" && back(the_stack) == .Table {
+            this.unique = check_uniqueness()
+            this.message_short = "Mismatched brackets!"
+            add_long_message(&this, "Forgot to close a table that was inside the \"closed\" list [ { ] }:")
+            add_example_code(&this, "", "]")
+            append(out, this)
+        }
+        if token == "}" && back(the_stack) == .Array {
+            this.unique = check_uniqueness()
+            this.message_short = "Mismatched brackets!"
+            add_long_message(&this, "Forgot to close a list that was inside the \"closed\" table { [ } ]:")
+            add_example_code(&this, "", "}")
+            append(out, this)
+        }
         if prefix(token, "'") && !suffix(token, "'") {
             this.unique = check_uniqueness()
             this.message_short = "Missing closing quote!"
-            this.message_long  = make_builder(base.allocator)
-            write_string(&this.message_long, "Try adding a single quote here: \n")
+            add_long_message(&this, "Try adding a single quote here:")
             add_example_code(&this, "'")
             append(out, this)
-
         } 
         if prefix(token, "\"") && !suffix(token, "\"") {
             this.unique = check_uniqueness()
             this.message_short = "Missing closing quote!"
-            this.message_long  = make_builder(base.allocator)
-            write_string(&this.message_long, "Try adding a double quote here: \n")
+            add_long_message(&this, "Try adding a double quote here:")
             add_example_code(&this, "\"")
             append(out, this)
 
@@ -88,11 +119,28 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
             this.type = .Warning
             this.unique = check_uniqueness()
             this.message_short = "Found a stray carriage return symbol!"
-            this.message_long  = make_builder(base.allocator)
-            write_string(&this.message_long, "Please add a new line character after the '\\r': \n")
-            add_example_code(&this, "", index_byte(this.line, '\r'))
+            add_long_message(&this, "Please add a new line character after the '\\r':")
+            add_example_code(&this, "", "\r")
             append(out, this)
         }
+
+
+        if prefix(token, "\"") && next == "=" && peek(&onwards, 2)^ != "=" {
+            this.type = .Warning
+            this.unique = check_uniqueness()
+            this.message_short = "Quoted keys are not actually implemented."
+            add_long_message(&this, "You will have to access the value via e.g.: your_table[%q]", token)
+            add_example_code(&this, "", "\"")
+            append(out, this)
+        } 
+        if prefix(token, "'") && next == "=" && peek(&onwards, 2)^ != "=" {
+            this.type = .Warning
+            this.unique = check_uniqueness()
+            this.message_short = "Quoted keys are not actually implemented."
+            add_long_message(&this, "Single quotes will not be stripped: your_table[%q] == your_value", token)
+            add_example_code(&this, "", "'")
+            append(out, this)
+        } 
     }
 }
 
@@ -124,14 +172,24 @@ default_tokenizer_handler :: proc(info: ^Validator) {
         fmt.println(line, "\x1b[0m")
     }
 
-    if info.halt do exit(1)
+    if info.halt { 
+        fmt.println("\x1b[3;31mProgram exited due to utoml errors...\x1b[0m")
+        fmt.println("\x1b[2;37mTIP: you can replace io.error_handlers\x1b[0m")
+        exit(1)
+    }
 }
 
 @(private="file")
-add_example_code :: proc(this: ^Validator, code: string, position := -1) {
+add_long_message :: proc(this: ^Validator, msg: string, args: ..any) {
+    if len(this.message_long.buf) == 0 { this.message_long = make_builder(this.allocator) }
+    fmt.sbprintfln(&this.message_long, msg, ..args)
+}
+
+@(private="file")
+add_example_code :: proc(this: ^Validator, code: string, bad_char := "") {
     str := this.line
     str  = escape_ascii(str, this.allocator)
-    position := len(str) if position == -1 else position 
+    position := len(str) if bad_char == "" else index(this.line[this.column-len(this.text):], bad_char) + this.column-len(this.text) 
     position += digits_in(this.row)+2
 
     fmt.sbprintfln(&this.message_long, "    %d: %s%s", this.row, str, code)

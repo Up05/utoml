@@ -20,7 +20,7 @@ File :: struct {
     path   : string,
     text   : string,
     tokens : Tokens,
-    alloc  : Allocator,
+    alloc  : Allocator, // TODO should not exist / be used extremely rarely!
 }
 
 
@@ -28,7 +28,7 @@ Table :: map [string] Value
 List  :: [dynamic] Value
 Date  :: dates.Date 
 
-ErrorValue :: struct {
+ErrorValue :: struct { // TODO actually use
     date_error: dates.DateError
 }
 
@@ -79,42 +79,67 @@ parse_userfile :: proc(io: ^IO, filename: string) -> (ok: bool) {
 
 @private
 parse :: proc(io: ^IO, file: File) {
-    if io.root == nil {
-        io.root = new(Table, io.alloc)
-    }
+    if io.root == nil { io.root = new(Table, io.alloc) }
 
     table  := io.root
     tokens := file.tokens[:]
     for {
         should_continue := 
-            handle_assign(&tokens, table)
+            handle_assign (io, &tokens,  table)  ||
+            handle_section(io, &tokens, &table) ||
+            handle_extras (io, &tokens,  table)
     
         if !should_continue do break
     }   
 }
 
+// TODO actually use
 @(private="file")
-handle_assign :: proc(tokens: ^[] string, out: ^Table) -> bool {
+handle_extras :: proc(io: ^IO, tokens: ^[] string, out: ^Table) -> bool {
+    if peek(tokens)^ == "" do return false
+    // do something about errors. maybe: ErrorValue
+    next(tokens)
+    return true
+}
+
+
+@(private="file")
+handle_section :: proc(io: ^IO, tokens: ^[] string, out: ^^Table) -> bool {
+    if peek(tokens)^ != "[" do return false
+    next(tokens); // '['
+    name  := next(tokens)
+    table := new(Table, io.alloc)
+
+    out^ = io.root
+    out^^[name^] = { tokens = { name }, parsed = table } 
+    out^ = table
+
+    next(tokens); // ']'
+    return true
+}
+
+@(private="file")
+handle_assign :: proc(io: ^IO, tokens: ^[] string, out: ^Table) -> bool {
     if peek(tokens, 1)^ != "=" do return false
     key := next(tokens)
     next(tokens) // '='
 
     value: Value
     ok :=
-        handle_integer(tokens, &value) ||
-        handle_float  (tokens, &value) || 
-        handle_bool   (tokens, &value) ||
-        handle_date   (tokens, &value) ||
-        handle_string (tokens, &value) || 
-        handle_table  (tokens, &value) || 
-        handle_list   (tokens, &value)
+        handle_integer(io, tokens, &value) ||
+        handle_float  (io, tokens, &value) || 
+        handle_bool   (io, tokens, &value) ||
+        handle_date   (io, tokens, &value) ||
+        handle_string (io, tokens, &value) || 
+        handle_table  (io, tokens, &value) || 
+        handle_list   (io, tokens, &value)
 
     if ok { out^[key^] = value }
     return ok
 }
 
 @(private="file")
-handle_table :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_table :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     if peek(tokens)^ != "{" do return false
 
     result := new(Table, context.allocator)
@@ -124,7 +149,7 @@ handle_table :: proc(tokens: ^[] string, out: ^Value) -> bool {
 
         if peek(tokens)^ == "," { next(tokens); continue }
         
-        ok := handle_assign(tokens, result)
+        ok := handle_assign(io, tokens, result)
         if !ok { return false }
     }
     next(tokens) // '}'
@@ -135,7 +160,7 @@ handle_table :: proc(tokens: ^[] string, out: ^Value) -> bool {
 }
 
 @(private="file")
-handle_list :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_list :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     if peek(tokens)^ != "[" do return false
 
     result := new(List, context.allocator)
@@ -148,13 +173,13 @@ handle_list :: proc(tokens: ^[] string, out: ^Value) -> bool {
         
         element: Value
         ok :=
-            handle_integer(tokens, &element) ||
-            handle_float  (tokens, &element) || 
-            handle_bool   (tokens, &element) ||
-            handle_date   (tokens, &element) ||
-            handle_string (tokens, &element) || 
-            handle_table  (tokens, &element) ||
-            handle_list   (tokens, &element)
+            handle_integer(io, tokens, &element) ||
+            handle_float  (io, tokens, &element) || 
+            handle_bool   (io, tokens, &element) ||
+            handle_date   (io, tokens, &element) ||
+            handle_string (io, tokens, &element) || 
+            handle_table  (io, tokens, &element) ||
+            handle_list   (io, tokens, &element)
         if !ok { return false }
 
         for token in element.tokens { append(&all_tokens, token) }
@@ -168,7 +193,7 @@ handle_list :: proc(tokens: ^[] string, out: ^Value) -> bool {
 }
 
 @(private="file")
-handle_integer :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_integer :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     integer, ok := parse_int(peek(tokens)^)
     if !ok do return false
     out.tokens = { next(tokens) }
@@ -177,7 +202,7 @@ handle_integer :: proc(tokens: ^[] string, out: ^Value) -> bool {
 }
 
 @(private="file")
-handle_float :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_float :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     text := peek(tokens)^
 
     Infinity : f64 = 1e5000
@@ -200,7 +225,7 @@ handle_float :: proc(tokens: ^[] string, out: ^Value) -> bool {
 }
 
 @(private="file")
-handle_bool :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_bool :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     text := peek(tokens)^
     if text == "true"  { out^ = { tokens = { next(tokens) }, parsed = true  }; return true }
     if text == "false" { out^ = { tokens = { next(tokens) }, parsed = false }; return true }
@@ -208,7 +233,7 @@ handle_bool :: proc(tokens: ^[] string, out: ^Value) -> bool {
 }
 
 @(private="file")
-handle_date :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_date :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     if !dates.is_date_lax(peek(tokens)^) { return false }
     
     // TODO: handle errors... somehow...
@@ -237,14 +262,14 @@ handle_date :: proc(tokens: ^[] string, out: ^Value) -> bool {
 }
 
 @(private="file")
-handle_string :: proc(tokens: ^[] string, out: ^Value) -> bool {
+handle_string :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     text := peek(tokens)^
     if first_rune(text) != '"' && first_rune(text) != '\'' { return false }
     out^ = { tokens = { next(tokens) }, parsed = text }
     return true
 }
 
-@(private="file")
+@private // (used elsewhere in the project)
 peek :: proc(tokens: ^[] string, n := 0) -> ^string {
     n := n
     for &token in tokens^ {
