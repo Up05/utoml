@@ -18,7 +18,7 @@ Because they are annoying.
 
 ## Sections
 
-```
+```toml
 [table]
 they = "exists"
 
@@ -30,7 +30,7 @@ work = [ "normally", "-ish" ]
 
 Keys can, technically, be whatever...
 This makes the statement "utoml is toml subset" false, but also:
-```
+```toml
 = = 5 # is totally valid
 # so...
 ```
@@ -48,7 +48,7 @@ and = "
 ```
 
 And
-```
+```toml
 literal_string = 'where \ is just a character.'
 so = '\u1234' # doesn't work
 ```
@@ -59,7 +59,7 @@ In non-literal strings use \\ to escape text & TOML's \uXXXX and \UXXXXXXXX for 
 ## Integers
 
 Equivalent to TOML.
-```
+```toml
 a = 123
 b = 0xDEADBEEF
 c = 123_456_789
@@ -68,7 +68,7 @@ c = 123_456_789
 ## Floating-point numbers
 
 Equivalent to TOML.
-```
+```toml
 a = 123.456
 b = 123e2
 c = -inf
@@ -77,7 +77,7 @@ c = -inf
 ## Boolean
 
 Equivalent to TOML.
-```
+```toml
 a = true
 b = false
 ```
@@ -85,7 +85,7 @@ b = false
 ## Dates
 
 Equivalent to TOML.
-```
+```toml
 a = 2025-11-23
 b = 12:30:00
 c = 2025-11-23 12:30:00+02:00
@@ -94,7 +94,7 @@ c = 2025-11-23 12:30:00+02:00
 ## Lists (arrays)
 
 Equivalent(-ish) to TOML.
-```
+```toml
 list = [ 1, 2, 3 ]
 yeah = [ [ 'a', 'b' ],,,, 5, ]
 ```
@@ -102,7 +102,7 @@ yeah = [ [ 'a', 'b' ],,,, 5, ]
 ## (inline) Tables
 
 Similar to TOML.
-```
+```toml
 table = {
     b = { c = 1, d = 2 },
     e = [ 1, 2 ]
@@ -110,7 +110,7 @@ table = {
 ```
 
 You cannot have dotted paths:
-```
+```toml
 a = { terrible.better.yet.horrible = 999 }
 also.invalid.here = {}
 [and.here]
