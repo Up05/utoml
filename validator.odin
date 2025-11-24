@@ -2,9 +2,11 @@ package utoml
 
 import "core:fmt"
 
+ErrorHandler :: proc(info: ^Validator)
+
 Validator :: struct {
-    allocator : Allocator,              // used for all internal allocations, may be free_all-ed
-    handler   : proc(info: ^Validator), // error handler function, see: default_tokenizer_handler 
+    allocator : Allocator,    // used for all internal allocations, may be free_all-ed
+    handler   : ErrorHandler, // error handler function, see: default_tokenizer_handler 
 
     message_short : string,  // single line constant error message
     message_long  : Builder, // multiline error details, code snippets & suggestions
@@ -13,7 +15,7 @@ Validator :: struct {
     line   : string, // full line where error occurred
     text   : string, // token the error was found in
 
-    file   : string, // may be null, (absolute file path)   TODO it's not abs right now...
+    file   : string, // may be null, (absolute file path)
     row    : int,    // bad token's starting line number
     column : int,    // bad token's starting column 
     
@@ -24,28 +26,19 @@ Validator :: struct {
 
 MAX_ERRORS :: 16 // max errors to be "shown on screen" / given to error handlers
 
-// TODO TOTALLY REFACTOR WITH THE NEW `IO` STRUCT
-validate :: proc(custom_validator: ^Validator = nil) -> (ok: bool) {
-    default_validator : Validator = {
-        allocator = context.temp_allocator,
-        handler   = default_tokenizer_handler, 
-    }
+@private
+make_validator :: proc(file: File, handler: ErrorHandler) -> (v: Validator) {
+    v.allocator = make_arena()
+    v.handler   = handler
+    v.file      = file.path
+    v.full      = file.text
+    return
+}
 
-    base := custom_validator if custom_validator != nil else &default_validator
-    results: [dynamic] Validator
-    defer delete(results)
 
-    // ------------------------------- MISPLACED -------------------------------
-
-    base.file = "/home/ulti/src/utoml/example.toml"
-    text, err := read_entire_file("example.toml", context.allocator)
-    base.full = string(text)
-    tokens := tokenize(string(text))
-
-    validate_tokenizer(base, tokens, &results)
-    
-    // ------------------------------- ENDING -------------------------------
-    sort_by(results[:], proc(a, b: Validator) -> bool { return a.type == .Error })
+@private
+digest_validator :: proc(results: [] Validator) -> (ok: bool) {
+    sort_by(results, proc(a, b: Validator) -> bool { return a.type == .Error })
     has_errors := len(results) > 0 && results[0].type == .Error
 
     result_count := min(MAX_ERRORS, len(results))
@@ -53,9 +46,6 @@ validate :: proc(custom_validator: ^Validator = nil) -> (ok: bool) {
         if i == result_count - 1 && has_errors do result.halt = true
         result.handler(&result)
     }
-
-    // ------------------------------- MISPLACED2 -------------------------------
-    // TODO parse_tokens(tokens)
 
     return !has_errors
 }

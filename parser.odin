@@ -9,7 +9,11 @@ IO :: struct {
     defaults  : [dynamic] Tokens,
     root      : ^Table,
     alloc     : Allocator,
-    // also error handlers
+
+    error_handlers : struct {
+        tokenizer  : ErrorHandler,
+        parser     : ErrorHandler,
+    }
 }
 
 File :: struct {
@@ -22,32 +26,55 @@ File :: struct {
 
 Table :: map [string] Value
 List  :: [dynamic] Value
-Date  :: dates.Date
+Date  :: dates.Date 
+
+ErrorValue :: struct {
+    date_error: dates.DateError
+}
 
 Value :: struct {
     tokens : [] ^string,
-    parsed : union { int, f64, bool, string, Date, ^List, ^Table }
+    parsed : union { int, f64, bool, string, Date, ^List, ^Table, ErrorValue }
 }
 
 empty_token := ""
 
-parse_userfile :: proc(io: ^IO, filename: string) {
+auto_init_io :: proc(io: ^IO) {
+    set_default :: proc(v: ^$T, d: T) { v^ = v^ if v^ != { } else d }
+    set_default(&io.alloc, make_arena())
+
+    {   using io.error_handlers
+        set_default(&tokenizer, default_tokenizer_handler)
+    }
+}
+
+parse_userfile :: proc(io: ^IO, filename: string) -> (ok: bool) {
     check_nil_io(io)
-    if io.alloc == {} { io.alloc = context.allocator }
+    auto_init_io(io)
 
     file_alloc := context.allocator
     text, err1 := read_entire_file(filename, file_alloc)
     path, err2 := absolute_path(filename, file_alloc)
     tokens := tokenize(string(text))
 
-    append(&io.userfiles, File {
-        path = path,
-        text = string(text),
+    file: File = {
+        path   = path,
+        text   = string(text),
         tokens = tokens,
         alloc  = file_alloc
-    })
+    }
+    append(&io.userfiles, file)
 
-    parse(io, io.userfiles[len(io.userfiles) - 1])
+    validator := make_validator(file, io.error_handlers.tokenizer)
+    results   := make([dynamic] Validator, validator.allocator)
+
+    validate_tokenizer(&validator, tokens, &results)
+    ok = digest_validator(results[:])
+    free_all(validator.allocator)
+    if !ok do return false
+
+    parse(io, file)
+    return true
 }
 
 @private

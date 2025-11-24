@@ -7,6 +7,7 @@ import "core:slice"
 import "core:strings"
 import "core:strconv"
 import "core:unicode/utf8"
+import "core:mem/virtual"
 import os "core:os/os2"
 
 Allocator :: mem.Allocator
@@ -37,6 +38,13 @@ last_index_byte :: strings.last_index_byte
 split_iterator  :: strings.split_iterator
 split           :: strings.split
 
+@private 
+make_arena :: proc() -> Allocator {
+    arena := new(virtual.Arena)
+    _ = virtual.arena_init_growing(arena)
+    return virtual.arena_allocator(arena) 
+}
+
 @private
 first_rune :: proc(s: string) -> rune {
     if len(s) == 0 { return 0 }
@@ -44,9 +52,19 @@ first_rune :: proc(s: string) -> rune {
     return r
 }
 
+@private
+empty :: proc(text: ^string) -> bool {
+    return text == nil || len(text^) == 0
+}
+
 @private find      :: proc(a: string, b: string) -> int { i := strings.index(a, b); return i if i != -1 else len(a) }
 @private find_rune :: proc(a: string, b: rune)   -> int { i := strings.index_rune(a, b); return i if i != -1 else len(a) }
 @private find_byte :: proc(a: string, b: byte)   -> int { i := strings.index_byte(a, b); return i if i != -1 else len(a) }
+
+@private back_slice :: proc(A: []$T) -> T { return A[len(A) - 1] }
+@private back_dyarr :: proc(A: [dynamic]$T) -> T { return A[len(A) - 1] }
+@private back_stack :: proc(A: [$N]$T) -> T { return A[len(A) - 1] }
+@private back :: proc { back_slice, back_dyarr, back_stack }
 
 @private
 find_any :: proc(a: string, B: [] rune) -> int {
@@ -56,11 +74,6 @@ find_any :: proc(a: string, B: [] rune) -> int {
         }
     }
     return len(a)
-}
-
-@private
-empty :: proc(text: ^string) -> bool {
-    return text == nil || len(text^) == 0
 }
 
 @private
