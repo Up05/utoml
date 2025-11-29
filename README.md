@@ -35,6 +35,10 @@ This makes the statement "utoml is toml subset" false, but also:
 # so...
 ```
 
+Also, duplicate keys are valid (by default).
+In the same file: they get overwritten in order
+In different files: they get overwritten in the order the files were parsed, e.g., via `parse_userfile`
+
 ## Text (strings)
 
 There are 2 types of text:

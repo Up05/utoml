@@ -1,6 +1,7 @@
 package utoml
 
 import "core:fmt"
+import "dates"
 
 ErrorHandler :: proc(info: ^Validator)
 
@@ -27,14 +28,12 @@ Validator :: struct {
 MAX_ERRORS :: 16 // max errors to be "shown on screen" / given to error handlers
 
 @private
-make_validator :: proc(file: File, handler: ErrorHandler) -> (v: Validator) {
+make_validator :: proc(file: File) -> (v: Validator) {
     v.allocator = make_arena()
-    v.handler   = handler
     v.file      = file.path
     v.full      = file.text
     return
 }
-
 
 @private
 digest_validator :: proc(results: [] Validator) -> (ok: bool) {
@@ -44,6 +43,7 @@ digest_validator :: proc(results: [] Validator) -> (ok: bool) {
     result_count := min(MAX_ERRORS, len(results))
     for &result, i in results[:result_count] {
         if i == result_count - 1 && has_errors do result.halt = true
+        fmt.assertf(result.handler != nil, "UTOML ASSERT: You passed in your own []Validator results into 'digest_validator', didn't ya?")
         result.handler(&result)
     }
 
@@ -71,7 +71,8 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
         this.line = lines[row] // Later, maybe handle the OOB...
         this.column = get_column(tokens[:i+1])
         defer row += count(tokens[i], "\n")
-        
+        if base.handler == nil do this.handler = default_tokenizer_handler 
+
         defer { // state calculations
             if token == "[" do append_elem(&the_stack, ComplexType.Array)
             if token == "{" do append_elem(&the_stack, ComplexType.Table)
@@ -79,6 +80,18 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
             if token == "}" do pop(&the_stack) // but has better behaviour... :) 
         }
         
+        if dates.is_date_lax(token) {
+            if _, err := dates.from_string(token); err != .NONE {
+                context.user_ptr = &err
+                this.unique = check_uniqueness() // careful! this uses #caller_location
+                this.message_short = "Could not parse date (or part of date)"
+                add_long_message(&this, "With error: %v", err)
+                add_long_message(&this, "Dates follow this format: 'YYYY-MM-DD HH-MM-SS+HH:MM'")
+                add_long_message(&this, "You may specify only one of date, time & UTC offset")
+                add_example_code(&this, "", proc(line: string) -> int {  return dates.get_bad_spot(line, (^dates.DateError)(context.user_ptr)^)  })
+                append(out, this)
+            }
+        }
         if token == "=" && back(the_stack) == .Array {
             this.unique = check_uniqueness() // careful! this uses #caller_location
             this.message_short = "Cannot assign inside a list"
@@ -186,7 +199,26 @@ add_long_message :: proc(this: ^Validator, msg: string, args: ..any) {
 }
 
 @(private="file")
-add_example_code :: proc(this: ^Validator, code: string, bad_char := "") {
+add_example_code :: proc { add_example_code_func, add_example_code_index }
+
+@(private="file")
+add_example_code_func :: proc(this: ^Validator, code: string, bad_char: proc(line: string) -> int) {
+    str := this.line
+    str  = escape_ascii(str, this.allocator)
+    position := len(str) if bad_char == nil else bad_char(this.line[this.column-len(this.text):]) + this.column-len(this.text) 
+    position += digits_in(this.row)+2
+
+    fmt.sbprintfln(&this.message_long, "    %d: %s%s", this.row, str, code)
+    fmt.sbprintf  (&this.message_long, "    % *s", position, "")
+
+    write_rune(&this.message_long, '^')
+    for i := 1; i < len(code) - 1; i += 1 { write_rune(&this.message_long, '~') }
+    if len(code) > 1 { write_rune(&this.message_long, '^') }
+    write_rune(&this.message_long, '\n')
+}
+
+@(private="file")
+add_example_code_index :: proc(this: ^Validator, code: string, bad_char := "") {
     str := this.line
     str  = escape_ascii(str, this.allocator)
     position := len(str) if bad_char == "" else index(this.line[this.column-len(this.text):], bad_char) + this.column-len(this.text) 

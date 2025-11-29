@@ -7,7 +7,7 @@ explained = true # third comment for explained
 
 just_write_the_fucking_namespaces = true
 
-dates_are_toml_like = 2025-11-22 # and commentable
+dates_are_toml_like = 2025-11-22#L13:00:00+00:90 # and commentable
 
 [section1]
 

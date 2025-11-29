@@ -12,7 +12,6 @@ IO :: struct {
 
     error_handlers : struct {
         tokenizer  : ErrorHandler,
-        parser     : ErrorHandler,
     }
 }
 
@@ -23,18 +22,13 @@ File :: struct {
     alloc  : Allocator, // TODO should not exist / be used extremely rarely!
 }
 
-
 Table :: map [string] Value
 List  :: [dynamic] Value
 Date  :: dates.Date 
 
-ErrorValue :: struct { // TODO actually use
-    date_error: dates.DateError
-}
-
 Value :: struct {
     tokens : [] ^string,
-    parsed : union { int, f64, bool, string, Date, ^List, ^Table, ErrorValue }
+    parsed : union { int, f64, bool, string, Date, ^List, ^Table },
 }
 
 empty_token := ""
@@ -65,7 +59,7 @@ parse_userfile :: proc(io: ^IO, filename: string) -> (ok: bool) {
     }
     append(&io.userfiles, file)
 
-    validator := make_validator(file, io.error_handlers.tokenizer)
+    validator := make_validator(file)
     results   := make([dynamic] Validator, validator.allocator)
 
     validate_tokenizer(&validator, tokens, &results)
@@ -74,6 +68,7 @@ parse_userfile :: proc(io: ^IO, filename: string) -> (ok: bool) {
     if !ok do return false
 
     parse(io, file)
+
     return true
 }
 
@@ -85,7 +80,7 @@ parse :: proc(io: ^IO, file: File) {
     tokens := file.tokens[:]
     for {
         should_continue := 
-            handle_assign (io, &tokens,  table)  ||
+            handle_assign (io, &tokens,  table) ||
             handle_section(io, &tokens, &table) ||
             handle_extras (io, &tokens,  table)
     
@@ -93,11 +88,19 @@ parse :: proc(io: ^IO, file: File) {
     }   
 }
 
-// TODO actually use
+
+// These should be validated by the tokenizer
+// So, they are just here not to hang the program
+// On syntax errors which are not yet implemented
 @(private="file")
 handle_extras :: proc(io: ^IO, tokens: ^[] string, out: ^Table) -> bool {
     if peek(tokens)^ == "" do return false
-    // do something about errors. maybe: ErrorValue
+    next(tokens)
+    return true
+}
+@(private="file")
+handle_extra  :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
+    if peek(tokens)^ == "" do return false
     next(tokens)
     return true
 }
@@ -132,9 +135,10 @@ handle_assign :: proc(io: ^IO, tokens: ^[] string, out: ^Table) -> bool {
         handle_date   (io, tokens, &value) ||
         handle_string (io, tokens, &value) || 
         handle_table  (io, tokens, &value) || 
-        handle_list   (io, tokens, &value)
+        handle_list   (io, tokens, &value) ||
+        handle_extra  (io, tokens, &value)
 
-    if ok { out^[key^] = value }
+    out^[key^] = value
     return ok
 }
 
@@ -149,13 +153,13 @@ handle_table :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 
         if peek(tokens)^ == "," { next(tokens); continue }
         
-        ok := handle_assign(io, tokens, result)
-        if !ok { return false }
+        ok := 
+            handle_assign(io, tokens, result) ||
+            handle_extras(io, tokens, result)
     }
     next(tokens) // '}'
 
-    out^ = { tokens = { /* tables do not contain child tokens */ }, parsed = result }
-
+    out^ = { tokens = { /* child tokens are stored in children! */ }, parsed = result }
     return true
 }
 
@@ -179,8 +183,8 @@ handle_list :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
             handle_date   (io, tokens, &element) ||
             handle_string (io, tokens, &element) || 
             handle_table  (io, tokens, &element) ||
-            handle_list   (io, tokens, &element)
-        if !ok { return false }
+            handle_list   (io, tokens, &element) ||
+            handle_extra  (io, tokens, &element)
 
         for token in element.tokens { append(&all_tokens, token) }
         append(result, element) 
@@ -236,9 +240,6 @@ handle_bool :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 handle_date :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     if !dates.is_date_lax(peek(tokens)^) { return false }
     
-    // TODO: handle errors... somehow...
-    // probley just keep IO.date_errors: [] ^token
-
     a_tok := next(tokens)
     a, err1 := dates.from_string(a_tok^)
     
@@ -251,6 +252,7 @@ handle_date :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
             
         out.tokens = { a_tok, b_tok }
         out.parsed = dates.combine(a, b)
+
     } else {
         if err1 != .NONE do return false
     
