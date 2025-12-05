@@ -31,44 +31,6 @@ DateError :: enum {
     FAILED_AT_TIME_SEPERATOR, // character seperating full-date & full-time isn't in variable "time_separators"
 }
 
-get_bad_spot :: proc(str: string, err: DateError) -> int {
-    DATE_PROBLEM : [] DateError = { .NONE, .FAILED_AT_YEAR, .FAILED_AT_MONTH,  .FAILED_AT_DAY,    .YEAR_OUT_OF_BOUNDS, .MONTH_OUT_OF_BOUNDS,  .DAY_OUT_OF_BOUNDS, .FAILED_AT_TIME_SEPERATOR }
-    // TIME_PROBLEM : [] DateError = { .FAILED_AT_HOUR, .FAILED_AT_MINUTE, .FAILED_AT_SECOND, .HOUR_OUT_OF_BOUNDS, .MINUTE_OUT_OF_BOUNDS, .SECOND_OUT_OF_BOUNDS, 
-    //                                 .FAILED_AT_OFFSET_HOUR, .FAILED_AT_OFFSET_MINUTE, .OFFSET_HOUR_OUT_OF_BOUNDS, .OFFSET_MINUTE_OUT_OF_BOUNDS }
-
-    OFFSETS : [DateError] int = {
-        .FAILED_AT_YEAR  = 0, .YEAR_OUT_OF_BOUNDS  = 0,    .FAILED_AT_HOUR = 0,   .HOUR_OUT_OF_BOUNDS = 0,
-        .FAILED_AT_MONTH = 5, .MONTH_OUT_OF_BOUNDS = 5,    .FAILED_AT_MINUTE = 3, .MINUTE_OUT_OF_BOUNDS = 3,
-        .FAILED_AT_DAY   = 8, .DAY_OUT_OF_BOUNDS   = 8,    .FAILED_AT_SECOND = 6, .SECOND_OUT_OF_BOUNDS = 6,
-        .FAILED_AT_OFFSET_HOUR    = 9,    .OFFSET_HOUR_OUT_OF_BOUNDS   = 9,  
-        .FAILED_AT_OFFSET_MINUTE  = 12,   .OFFSET_MINUTE_OUT_OF_BOUNDS = 12,
-        .FAILED_AT_TIME_SEPERATOR = 10,   .NONE = 0
-    }
-
-    date_offset := 0
-    time_offset := 0
-
-    for _, i in str {
-        if !is_date_lax(str[i:]) { continue }
-
-        if str[i + 4] == '-' { 
-            date_offset = i
-            if is_date_lax(str[i+11:]) { 
-                time_offset = i + 11 
-                break
-            }
-        } else {
-            time_offset = i
-            break
-        } 
-    }
-
-    offset := date_offset if any_of(DATE_PROBLEM, err) else time_offset
-    offset += OFFSETS[err]
-    return offset
-}
-
-
 // may be overwritten. Set to empty array to accept any time seperator
 time_separators: []string = {"t", "T", " "}
 offset_separators: []string = {"z", "Z", "+", "-"}
@@ -308,6 +270,44 @@ is_date_lax :: proc(date: string) -> bool {
 
     return is_date || is_time
 }
+
+get_bad_spot :: proc(str: string, err: DateError) -> int {
+    DATE_PROBLEM : [] DateError = { .NONE, .FAILED_AT_YEAR, .FAILED_AT_MONTH,  .FAILED_AT_DAY,    .YEAR_OUT_OF_BOUNDS, .MONTH_OUT_OF_BOUNDS,  .DAY_OUT_OF_BOUNDS, .FAILED_AT_TIME_SEPERATOR }
+    // TIME_PROBLEM : [] DateError = { .FAILED_AT_HOUR, .FAILED_AT_MINUTE, .FAILED_AT_SECOND, .HOUR_OUT_OF_BOUNDS, .MINUTE_OUT_OF_BOUNDS, .SECOND_OUT_OF_BOUNDS, 
+    //                                 .FAILED_AT_OFFSET_HOUR, .FAILED_AT_OFFSET_MINUTE, .OFFSET_HOUR_OUT_OF_BOUNDS, .OFFSET_MINUTE_OUT_OF_BOUNDS }
+
+    OFFSETS : [DateError] int = {
+        .FAILED_AT_YEAR  = 0, .YEAR_OUT_OF_BOUNDS  = 0,    .FAILED_AT_HOUR = 0,   .HOUR_OUT_OF_BOUNDS = 0,
+        .FAILED_AT_MONTH = 5, .MONTH_OUT_OF_BOUNDS = 5,    .FAILED_AT_MINUTE = 3, .MINUTE_OUT_OF_BOUNDS = 3,
+        .FAILED_AT_DAY   = 8, .DAY_OUT_OF_BOUNDS   = 8,    .FAILED_AT_SECOND = 6, .SECOND_OUT_OF_BOUNDS = 6,
+        .FAILED_AT_OFFSET_HOUR    = 9,    .OFFSET_HOUR_OUT_OF_BOUNDS   = 9,  
+        .FAILED_AT_OFFSET_MINUTE  = 12,   .OFFSET_MINUTE_OUT_OF_BOUNDS = 12,
+        .FAILED_AT_TIME_SEPERATOR = 10,   .NONE = 0
+    }
+
+    date_offset := 0
+    time_offset := 0
+
+    for _, i in str {
+        if !is_date_lax(str[i:]) { continue }
+
+        if str[i + 4] == '-' { 
+            date_offset = i
+            if is_date_lax(str[i+11:]) { 
+                time_offset = i + 11 
+                break
+            }
+        } else {
+            time_offset = i
+            break
+        } 
+    }
+
+    offset := date_offset if any_of(DATE_PROBLEM, err) else time_offset
+    offset += OFFSETS[err]
+    return offset
+}
+
 
 to_odin_datetime :: proc(date: Date) -> (result: datetime.DateTime, utc_offset: int, error: datetime.Error) {
     seconds, milliseconds := math.modf(date.second)
