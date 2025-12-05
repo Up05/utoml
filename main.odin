@@ -8,8 +8,14 @@ main :: proc() {
     
     io: IO
     parse_userfile(&io, "example.toml")
-    // parse_userfile(&io, "example2.toml")
-    frigg.watch(io, true)
+    // // parse_userfile(&io, "example2.toml")
+    // frigg.watch(io, true)
+
+    // format_integer({ parsed = int(1234567) })
+    
+    handle_integer(&io, io.root["value"])
+    // fmt.println(io.root["value"])
+    // fmt.println(file_by_token(&io, io.root["value"].tokens[0]))
 }
 
 /*
@@ -19,7 +25,7 @@ main :: proc() {
 
     serialize(list) ->
         creates tokens
-        ? creates formatting tokens
+        ? creates formatting tokens <-- no !COPY WHITESPACE AROUND LAST ELEMENT?
         injects tokens into the_file.tokens
 
     serialize(table) ->

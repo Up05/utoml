@@ -8,10 +8,14 @@ import "core:strings"
 import "core:strconv"
 import "core:unicode/utf8"
 import "core:mem/virtual"
+import "core:hash/xxhash"
 import os "core:os/os2"
+
+import "base:runtime"
 
 Allocator :: mem.Allocator
 Builder   :: strings.Builder
+Hash      :: u64
 
 exit             :: os.exit
 absolute_path    :: os.get_absolute_path
@@ -78,12 +82,14 @@ find_any :: proc(a: string, B: [] rune) -> int {
 }
 
 @private
-contains :: proc(array: [] $T, element: T) -> bool {
+contains_slice :: proc(array: [] $T, element: T) -> bool {
     #no_bounds_check for item in array {
         if item == element do return true
     }
     return false
 }
+
+contains :: proc { contains_slice, strings.contains_rune }
 
 @private
 any_of :: proc(a: $T, B: ..T) -> bool {
@@ -97,7 +103,7 @@ digits_in :: proc(number: int) -> int {
 }
 
 // The fact that this works is just honestly insane to me.
-// One would not refer to this algorithm as made using Liquid-CRYSTAL Display...
+// One would not refer to this algorithm as made using some HQ Liquid-Srystal Display...
 escape_ascii :: proc(raw: string, allocator: Allocator) -> string {
     ESC_SEQ : [32] byte = ' '
     ESC_SEQ[  0 ] = '0'
@@ -143,3 +149,23 @@ to_hex_digit :: proc(digit: byte) -> byte {
     if digit < 10 { return digit + '0' }
     return digit - 10 + 'A'
 }
+
+@private
+file_by_token :: proc(io: ^IO, token: ^string) -> ^File {
+    in_addr :: proc(value: rawptr, base: rawptr, size: int) -> bool {
+        value := uintptr(value); base := uintptr(base); size := uintptr(size)
+        fmt.println(value, base, size)
+        return value >= base && value <= base + size
+    }
+
+    for &file in io.userfiles {
+        raw_array := transmute(runtime.Raw_Dynamic_Array) file.tokens
+        if in_addr(rawptr(token), raw_array.data, raw_array.len * size_of(token)) { 
+            return &file
+        }
+    }
+
+    return nil
+}
+
+

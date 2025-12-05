@@ -3,7 +3,6 @@ package utoml
 import "core:fmt"
 import "dates"
 
-
 IO :: struct {
     userfiles : [dynamic] File,
     defaults  : [dynamic] Tokens,
@@ -12,6 +11,10 @@ IO :: struct {
 
     error_handlers : struct {
         tokenizer  : ErrorHandler,
+    },
+
+    formatter : struct {
+        integer_postprocessor : proc(this: string, info: IntegerInfo, out: ^Builder) // = digit_grouper
     }
 }
 
@@ -29,6 +32,7 @@ Date  :: dates.Date
 Value :: struct {
     tokens : [] ^string,
     parsed : union { int, f64, bool, string, Date, ^List, ^Table },
+    hash   : Hash, // xxhash of the original value
 }
 
 empty_token := ""
@@ -114,7 +118,7 @@ handle_section :: proc(io: ^IO, tokens: ^[] string, out: ^^Table) -> bool {
     table := new(Table, io.alloc)
 
     out^ = io.root
-    out^^[name^] = { tokens = { name }, parsed = table } 
+    out^^[name^] = { tokens = t(io, { name }), parsed = table } 
     out^ = table
 
     next(tokens); // ']'
@@ -159,7 +163,7 @@ handle_table :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     }
     next(tokens) // '}'
 
-    out^ = { tokens = { /* child tokens are stored in children! */ }, parsed = result }
+    out^ = { tokens = t(io, { /* child tokens are stored in children! */ }), parsed = result }
     return true
 }
 
@@ -200,7 +204,7 @@ handle_list :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 handle_integer :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     integer, ok := parse_int(peek(tokens)^)
     if !ok do return false
-    out.tokens = { next(tokens) }
+    out.tokens = t(io, { next(tokens) })
     out.parsed = integer
     return true
 }
@@ -213,17 +217,17 @@ handle_float :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     NaN := transmute(f64) ( transmute(i64) Infinity | 1 ) 
 
     if len(text) == 4 {
-        if text[0] == '-' { if text[1:] == "inf" { out^ = { tokens = { next(tokens) }, parsed = -Infinity }; return true } }
-        if text[0] == '+' { if text[1:] == "inf" { out^ = { tokens = { next(tokens) }, parsed = +Infinity }; return true } }
+        if text[0] == '-' { if text[1:] == "inf" { out^ = { tokens = t(io, { next(tokens) }), parsed = -Infinity }; return true } }
+        if text[0] == '+' { if text[1:] == "inf" { out^ = { tokens = t(io, { next(tokens) }), parsed = +Infinity }; return true } }
         if text[1:] == "nan" { out^ = { tokens = { next(tokens) }, parsed = +NaN }; return true }
     }
 
-    if text == "nan" { out^ = { tokens = { next(tokens) }, parsed = +NaN };      return true }
-    if text == "inf" { out^ = { tokens = { next(tokens) }, parsed = +Infinity }; return true }
+    if text == "nan" { out^ = { tokens = t(io, { next(tokens) }), parsed = +NaN };      return true }
+    if text == "inf" { out^ = { tokens = t(io, { next(tokens) }), parsed = +Infinity }; return true }
 
     float, ok := parse_f64(peek(tokens)^)
     if !ok { return false }
-    out.tokens = { next(tokens) }
+    out.tokens = t(io, { next(tokens) })
     out.parsed = float
     return true
 }
@@ -231,8 +235,8 @@ handle_float :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 @(private="file")
 handle_bool :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     text := peek(tokens)^
-    if text == "true"  { out^ = { tokens = { next(tokens) }, parsed = true  }; return true }
-    if text == "false" { out^ = { tokens = { next(tokens) }, parsed = false }; return true }
+    if text == "true"  { out^ = { tokens = t(io, { next(tokens) }), parsed = true  }; return true }
+    if text == "false" { out^ = { tokens = t(io, { next(tokens) }), parsed = false }; return true }
     return false
 }
 
@@ -250,13 +254,13 @@ handle_date :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
         if err1 != .NONE do return false
         if err2 != .NONE do return false
             
-        out.tokens = { a_tok, b_tok }
+        out.tokens = t(io, { a_tok, b_tok })
         out.parsed = dates.combine(a, b)
 
     } else {
         if err1 != .NONE do return false
     
-        out.tokens = { a_tok }
+        out.tokens = t(io, { a_tok })
         out.parsed = a
     }
 
@@ -267,7 +271,7 @@ handle_date :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 handle_string :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     text := peek(tokens)^
     if first_rune(text) != '"' && first_rune(text) != '\'' { return false }
-    out^ = { tokens = { next(tokens) }, parsed = text }
+    out^ = { tokens = t(io, { next(tokens) }), parsed = text }
     return true
 }
 
@@ -297,3 +301,11 @@ next :: proc(tokens: ^[] string) -> ^string {
     }
     return &empty_token
 }
+
+@(private="file")
+t :: proc(io: ^IO, arr: [] ^string) -> [] ^string {
+    out := make_slice(type_of(arr), len(arr), io.alloc)
+    for _, i in arr { out[i] = arr[i] }
+    return out
+}
+

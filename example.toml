@@ -1,4 +1,5 @@
-value = 253 
+# value = +0o715
+value = -0x1123_456_789
 value2 = 1.124e9
 
 # comment for explained
