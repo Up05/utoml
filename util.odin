@@ -38,10 +38,15 @@ prefix :: strings.starts_with
 suffix :: strings.ends_with
 count  :: strings.count
 index  :: strings.index
+index_any  :: strings.index_any
 index_byte :: strings.index_byte
 last_index_byte :: strings.last_index_byte
 split_iterator  :: strings.split_iterator
 split           :: strings.split
+string_clone    :: strings.clone
+
+@private 
+eat :: proc(v: $T, e: any) -> T { return v }
 
 @private 
 make_arena :: proc() -> Allocator {

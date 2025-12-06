@@ -14,6 +14,7 @@ main :: proc() {
     // format_integer({ parsed = int(1234567) })
     
     handle_integer(&io, io.root["value"])
+    handle_float(&io, io.root["value2"])
     // fmt.println(io.root["value"])
     // fmt.println(file_by_token(&io, io.root["value"].tokens[0]))
 }

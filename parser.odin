@@ -35,6 +35,9 @@ Value :: struct {
     hash   : Hash, // xxhash of the original value
 }
 
+Infinity : f64 = 1e5000
+NaN := transmute(f64) ( transmute(i64) Infinity | 1 ) 
+
 empty_token := ""
 
 auto_init_io :: proc(io: ^IO) {
@@ -213,16 +216,13 @@ handle_integer :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 handle_float :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     text := peek(tokens)^
 
-    Infinity : f64 = 1e5000
-    NaN := transmute(f64) ( transmute(i64) Infinity | 1 ) 
-
     if len(text) == 4 {
         if text[0] == '-' { if text[1:] == "inf" { out^ = { tokens = t(io, { next(tokens) }), parsed = -Infinity }; return true } }
         if text[0] == '+' { if text[1:] == "inf" { out^ = { tokens = t(io, { next(tokens) }), parsed = +Infinity }; return true } }
-        if text[1:] == "nan" { out^ = { tokens = { next(tokens) }, parsed = +NaN }; return true }
+        if text[1:] == "nan" { out^ = { tokens = t(io, { next(tokens) }), parsed = NaN }; return true }
     }
 
-    if text == "nan" { out^ = { tokens = t(io, { next(tokens) }), parsed = +NaN };      return true }
+    if text == "nan" { out^ = { tokens = t(io, { next(tokens) }), parsed = NaN };      return true }
     if text == "inf" { out^ = { tokens = t(io, { next(tokens) }), parsed = +Infinity }; return true }
 
     float, ok := parse_f64(peek(tokens)^)

@@ -136,6 +136,13 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
             add_example_code(&this, "", "\r")
             append(out, this)
         }
+        if non_decimal_float(token) {
+            this.unique = check_uniqueness() // careful! this uses #caller_location
+            this.message_short = "Found a floating-point number that is not base 10"
+            add_long_message(&this, "I both agree they are cool and can't be bothered to implement them...")
+            add_example_code(&this, "", proc(line: string) -> int { return index_any(line, "box") })
+            append(out, this)
+        }
 
 
         if prefix(token, "\"") && next == "=" && peek(&onwards, 2)^ != "=" {
@@ -277,8 +284,11 @@ stray_carriage_return :: proc(token: string) -> bool {
     return false
 }
 
-
-
+@private
+non_decimal_float :: proc(token: string) -> bool {
+    if !(first_rune(token) == '0' && any_of(first_rune(token[1:]), 'x', 'o', 'b')) do return false
+    return index_any(token, ".eE") != -1 
+}
 
 @private 
 check_nil_io :: proc(io: ^IO, caller := #caller_location) {
