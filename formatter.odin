@@ -1,5 +1,6 @@
 package utoml
 
+import "base:runtime"
 import "core:fmt"
 import "core:strconv"
 import "core:math"
@@ -52,9 +53,7 @@ handle_integer :: proc(io: ^IO, value: Value) {
     info: IntegerInfo = { original = token, has_plus_sign = has_plus_sign, has_separators = has_separators, the_base = the_base }
     if io.formatter.integer_postprocessor == nil { io.formatter.integer_postprocessor = digit_grouper }
     io.formatter.integer_postprocessor(formatted, info, &new_string)
-   
-    fmt.println(formatted)
-    fmt.println(string(new_string.buf[:]))
+    replace(value.tokens[0], string(new_string.buf[:]))
 }
 
 handle_float :: proc(io: ^IO, value: Value) {
@@ -92,12 +91,15 @@ handle_float :: proc(io: ^IO, value: Value) {
 
     precision := guess_precision(token, number) if format == 'f' else -1
 
-    info: FloatInfo = { original = token, has_plus_sign = has_plus_sign, has_separators = has_separators, 
-                        has_e = has_e, has_E = has_E, format = format, precision = precision }
-
     _formatted: [1024] byte
     formatted := strconv.write_float(_formatted[:], number, byte(format), precision, 64)
-    fmt.println(formatted)
+
+    info: FloatInfo = { original = token, has_plus_sign = has_plus_sign, has_separators = has_separators, 
+                        has_e = has_e, has_E = has_E, format = format, precision = precision }
+    new_string := make_builder(file.alloc)
+    if io.formatter.float_postprocessor == nil { io.formatter.float_postprocessor = default_float_postprocessor }
+    io.formatter.float_postprocessor(formatted, info, &new_string)
+    replace(value.tokens[0], string(new_string.buf[:]))
 
     guess_precision :: proc(old: string, new: f64) -> int {
         num := eat(strconv.parse_f64(old))
@@ -116,11 +118,88 @@ handle_float :: proc(io: ^IO, value: Value) {
     }
 }
 
-@(private="file")
-replace :: proc(value: ^string, with: string) {
-    fmt.println(value, "->", with)
+handle_string :: proc(io: ^IO, value: Value) {
+    text  := value.parsed.(string)
+    token := value.tokens[0]^
+
+    quote := "'''" if prefix(token, "'''") && suffix(token, "'''") else
+             `"""` if prefix(token, `"""`) && suffix(token, `"""`) else
+             "'"   if prefix(token, "'") else `"`
+
+    if  !any_of(first_rune(text), '\'', '"') || 
+        !any_of(final_byte(text), '\'', '"') {
+
+        file    := file_by_token(io, value.tokens[0])
+        builder := make_builder(file.alloc)
+        write_string(&builder, quote[1:])
+        enquote(&builder, text, token)
+        write_string(&builder, quote[1:])
+        replace(value.tokens[0], string(builder.buf[:]))
+    }
 }
 
+
+@(private="file")
+replace :: proc(value: ^string, with: string) {
+    fmt.println(value^, "->", with)
+    value^ = with
+}
+
+enquote :: proc(builder: ^Builder, raw: string, original: string = "a€↑∀▀ąЫα") {
+    unescaped_groups: [len(UNICODE_BLOCKS)] int
+    unescaped_group_len: int
+
+    // r: 0xA7
+    // g: 0 --- 0x80 --- 0x100 --- 0x180 --- 0x250
+    //    r<g?  r<g?     r<g?
+    //                   ^^^^^
+    #no_bounds_check for r in original {
+        #no_bounds_check for g, block in UNICODE_BLOCKS {
+            // yeah, I don't know why this works either...
+            // shouldn't it be: r >= g???
+            // ...I don't have enough time to get it again :(
+            if r < g && !any_of(block, ..unescaped_groups[:unescaped_group_len]) { 
+                unescaped_groups[unescaped_group_len] = block-1
+                unescaped_group_len += 1 
+                break
+            }
+        }
+    }
+
+    #no_bounds_check outer: for r in raw {
+
+        switch r {
+        case '\b': write_string(builder, `\b`); continue outer
+        case '\t': write_string(builder, `\t`); continue outer
+        case '\n': write_string(builder, `\n`); continue outer
+        case '\f': write_string(builder, `\f`); continue outer
+        case '\r': write_string(builder, `\r`); continue outer
+        case '\"': write_string(builder, `\"`); continue outer
+        case '\\': write_string(builder, `\"`); continue outer
+        }
+        
+        should_escape: bool // = 
+        #no_bounds_check for g, block in UNICODE_BLOCKS {
+            if r < g { 
+                should_escape = !any_of(block-1, ..unescaped_groups[:unescaped_group_len])
+                break
+            }
+        }
+
+        if should_escape {
+            if r < 0x10000 {
+                fmt.sbprintf(builder, "\\u%04x", r)
+            } else {
+                fmt.sbprintf(builder, "\\U%08X", r)
+            }
+        } else {
+            write_rune(builder, r)
+            fmt.println(string(builder.buf[:]))
+        }
+    }
+}
+
+// ------------------------------- DEFAULT HANDLERS -------------------------------
 
 digit_grouper :: proc(number: string, info: IntegerInfo, output: ^Builder) {
     if !info.has_separators {
@@ -143,3 +222,10 @@ digit_grouper :: proc(number: string, info: IntegerInfo, output: ^Builder) {
 
     }
 }
+
+default_float_postprocessor :: proc(number: string, info: FloatInfo, output: ^Builder) {
+    write_string(output, number)
+}
+
+
+

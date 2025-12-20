@@ -13,10 +13,25 @@ main :: proc() {
 
     // format_integer({ parsed = int(1234567) })
     
+
+    v := io.root["value"]
+    v.parsed = 256
+    map_insert(io.root, "value", v)
+
+    v = io.root["str"]
+    v.parsed = "some oth\u222Bąčęąer\" text"
+    map_insert(io.root, "str", v)
+
     handle_integer(&io, io.root["value"])
     handle_float(&io, io.root["value2"])
+    handle_string(&io, io.root["str"])
     // fmt.println(io.root["value"])
     // fmt.println(file_by_token(&io, io.root["value"].tokens[0]))
+
+    fmt.println("\n-------------------------------\n")
+    for file in io.userfiles {
+        fmt.println(file.tokens)
+    }
 }
 
 /*

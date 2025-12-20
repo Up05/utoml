@@ -1,4 +1,3 @@
-# value = +0o715
 value = -0x1123_456_789
 value2 = 88123_456_789.123
 
@@ -6,7 +5,8 @@ value2 = 88123_456_789.123
 # second comment for explained
 explained = true # third comment for explained
 
-just_write_the_fucking_namespaces = true
+bool = true
+str  = "ąwhatever sort of text..."
 
 dates_are_toml_like = 2025-11-22#L13:00:00+00:90 # and commentable
 

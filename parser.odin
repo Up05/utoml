@@ -14,7 +14,8 @@ IO :: struct {
     },
 
     formatter : struct {
-        integer_postprocessor : proc(this: string, info: IntegerInfo, out: ^Builder) // = digit_grouper
+        integer_postprocessor : proc(this: string, info: IntegerInfo, out: ^Builder),  // = digit_grouper
+        float_postprocessor   : proc(this: string, info: FloatInfo, out: ^Builder)     // = nil
     }
 }
 
