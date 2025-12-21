@@ -4,37 +4,37 @@ import "core:fmt"
 
 // get_value dotted.path -> Value
 
-@(private="file")
-find_identifier :: proc(tokens: [] string) -> int {
-    for token, i in tokens { if !any_of(first_rune(token), ..FORMATTING) { return i } }
-    return -1
-}
-
-
-@private
-get_common_element_separator :: proc(io: ^IO, table: ^Table) -> [] string {
-    common: [] string
-
-    for k, v in table^ {
-        if len(v.tokens) == 0 { continue }
-
-        for file in io.userfiles {
-            fmt.println( (cast(int) uintptr(raw_data(file.tokens)) - cast(int) uintptr(rawptr(back(v.tokens)))) / 8)
-        }
-        file := file_by_token(io, back(v.tokens)) 
-        fmt.println("!", back(v.tokens)^, file)
-        if file == nil { continue }
-        
-        index := index_from_ptrs(file.tokens[:], back(v.tokens))
-
-        separation := find_identifier(file.tokens[index + 1:]) 
-        fmt.println("=== SEPARATION ===", file.tokens[index + 1:index + 1 + separation])
-
-        
-    }
-    
-    return common
-}
+// @(private="file")
+// find_identifier :: proc(tokens: [] string) -> int {
+//     for token, i in tokens { if !any_of(first_rune(token), ..FORMATTING) { return i } }
+//     return -1
+// }
+// 
+// 
+// @private
+// get_common_element_separator :: proc(io: ^IO, table: ^Table) -> [] string {
+//     common: [] string
+// 
+//     for k, v in table^ {
+//         if len(v.tokens) == 0 { continue }
+// 
+//         for file in iofiles {
+//             fmt.println( (cast(int) uintptr(raw_data(file.tokens)) - cast(int) uintptr(rawptr(back(v.tokens)))) / 8)
+//         }
+//         file := file_by_token(io, back(v.tokens)) 
+//         fmt.println("!", back(v.tokens)^, file)
+//         if file == nil { continue }
+//         
+//         index := index_from_ptrs(file.tokens[:], back(v.tokens))
+// 
+//         separation := find_identifier(file.tokens[index + 1:]) 
+//         fmt.println("=== SEPARATION ===", file.tokens[index + 1:index + 1 + separation])
+// 
+//         
+//     }
+//     
+//     return common
+// }
 
 
 /* 

@@ -25,8 +25,6 @@ tokenize :: proc(raw: string) -> Tokens {
         if !should_continue do break
     }
 
-    fmt.println(tokens)
-
     return tokens
 }
 

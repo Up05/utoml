@@ -28,10 +28,10 @@ Validator :: struct {
 MAX_ERRORS :: 16 // max errors to be "shown on screen" / given to error handlers
 
 @private
-make_validator :: proc(file: File) -> (v: Validator) {
+make_validator :: proc(io: ^IO) -> (v: Validator) {
     v.allocator = make_arena()
-    v.file      = file.path
-    v.full      = file.text
+    v.file      = io.filepath
+    v.full      = io.fulltext
     return
 }
 
@@ -63,7 +63,7 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
     row: int
     for token, i in tokens {
         onwards := tokens[i:]
-        next := peek(&onwards, 1)^
+        next := peek(onwards, 1)
 
         this := base^
         this.text = token
@@ -145,7 +145,7 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
         }
 
 
-        if prefix(token, "\"") && next == "=" && peek(&onwards, 2)^ != "=" {
+        if prefix(token, "\"") && next == "=" && peek(onwards, 2) != "=" {
             this.type = .Warning
             this.unique = check_uniqueness()
             this.message_short = "Quoted keys are not actually implemented."
@@ -153,7 +153,7 @@ validate_tokenizer :: proc(base: ^Validator, tokens: Tokens, out: ^[dynamic] Val
             add_example_code(&this, "", "\"")
             append(out, this)
         } 
-        if prefix(token, "'") && next == "=" && peek(&onwards, 2)^ != "=" {
+        if prefix(token, "'") && next == "=" && peek(onwards, 2) != "=" {
             this.type = .Warning
             this.unique = check_uniqueness()
             this.message_short = "Quoted keys are not actually implemented."
@@ -306,4 +306,18 @@ check_nil_io :: proc(io: ^IO, caller := #caller_location) {
         "Example:\n\x1b[33m%s\x1b[0m", caller.procedure, EXAMPLE)
 }
 
+@(private="file")
+peek :: proc(tokens: [] string, n := 0) -> string {
+    n := n
+    for &token in tokens {
+        if len(token) > 0 && 
+           !contains(NONPRINTABLES, first_rune(token)) {
+            n -= 1
+        } 
+        if n < 0 {
+            return token
+        }
+    }
+    return {}
+}
 

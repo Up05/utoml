@@ -4,18 +4,20 @@ import "core:fmt"
 import "core:mem"
 import "core:math"
 import "core:slice"
+import "core:reflect"
 import "core:strings"
 import "core:strconv"
 import "core:unicode/utf8"
 import "core:mem/virtual"
 import "core:hash/xxhash"
+import "core:math/rand"
 import os "core:os/os2"
 
 import "base:runtime"
 
 Allocator :: mem.Allocator
 Builder   :: strings.Builder
-Hash      :: u64
+Hash      :: xxhash.xxh_u64
 
 exit             :: os.exit
 absolute_path    :: os.get_absolute_path
@@ -173,20 +175,38 @@ to_hex_digit :: proc(digit: byte) -> byte {
 }
 
 @private
-file_by_token :: proc(io: ^IO, token: ^string) -> ^File {
-    in_addr :: proc(value: rawptr, base: rawptr, size: int) -> bool {
-        value := uintptr(value); base := uintptr(base); size := uintptr(size)
-        return value >= base && value < base + size
-    }
+make_hashes :: proc(count: int, alloc: Allocator) -> [dynamic] u32 {
+    array := make([dynamic] u32, count, count, alloc)
+    for i in 0..<count { array[i] = rand.uint32() }
+    return array
+}
 
-    for &file in io.userfiles {
-        raw_array := transmute(runtime.Raw_Dynamic_Array) file.tokens
-        if in_addr(rawptr(token), raw_array.data, raw_array.len * size_of(token)) { 
-            return &file
+@private
+token_text_set :: proc(io: ^IO, token: TokenHandle, text: string) {
+    if int(token.token) < len(io.hashes) && token.hash == io.hashes[token.token] {
+        io.tokens[token.token] = text
+    } else {
+        for &tok, i in io.tokens {
+            if io.hashes[i] == token.hash { tok = text }
         }
     }
+}
 
-    return nil
+@private
+token_text :: proc(io: ^IO, token: TokenHandle) -> string {
+    if int(token.token) < len(io.hashes) && token.hash == io.hashes[token.token] {
+        return io.tokens[token.token]
+    } else {
+        for tok, i in io.tokens {
+            if io.hashes[i] == token.hash { return tok }
+        }
+    }
+    return ""
+}
+
+@private
+hash_value :: proc(value: ValueData) -> Hash {
+    return xxhash.XXH3_64(reflect.as_bytes(value))
 }
 
 

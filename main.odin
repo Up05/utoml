@@ -7,45 +7,38 @@ main :: proc() {
     fmt.println("started...")
     
     when true {
-    io: IO
-    parse_userfile(&io, "example.toml")
-    // // parse_userfile(&io, "example2.toml")
-    
+    io, ok := parse_file("example.toml", #load("example.toml"))
+    assert(ok)
 
-    // v := io.root["value"]
-    // v.parsed = 256
-    // map_insert(io.root, "value", v)
+    frigg.watch(io.root, true)
 
-    // v = io.root["str"]
-    // v.parsed = "some oth\u222Bąčęąer\" text"
-    // map_insert(io.root, "str", v)
+    v := io.root["value"]
+    v.parsed = 256
+    map_insert(io.root, "value", v)
 
-    // v = io.root["dates_are_toml_like"]
-    // date := v.parsed.(Date)
-    // date.day += 5
-    // date.offset_hour += 13
-    // v.parsed = date
-    // map_insert(io.root, "dates_are_toml_like", v)
+    v = io.root["str"]
+    v.parsed = "some oth\u222Bąčęąer\" text"
+    map_insert(io.root, "str", v)
 
-    // for k, v in io.root^ {
-    //     fmt.println(k, v)
-    // }
+    v = io.root["dates_are_toml_like"]
+    date := v.parsed.(Date)
+    date.day += 5
+    date.offset_hour += 13
+    v.parsed = date
+    map_insert(io.root, "dates_are_toml_like", v)
 
-    // format_value(&io, io.root["value"])
-    // format_value(&io, io.root["value2"])
-    // format_value(&io, io.root["str"])
-    // format_value(&io, io.root["dates_are_toml_like"])
-    // format_value(&io, table_get_value(io.root, "keybinds")^)
+    format_value(&io, io.root["value"])
+    format_value(&io, io.root["value2"])
+    format_value(&io, io.root["str"])
+    format_value(&io, io.root["dates_are_toml_like"])
 
     fmt.println("\n-------------------------------\n")
-    for file in io.userfiles { fmt.println(file.tokens) }
+    fmt.println(io.tokens)
     fmt.println("\n-------------------------------\n")
     
     // frigg.watch(io.root, true)
 
-    get_common_element_separator(&io, io.root["section1"].parsed.(^Table)["table"].parsed.(^Table))
-
-
+    // get_common_element_separator(&io, io.root["section1"].parsed.(^Table)["table"].parsed.(^Table))
 
     } // /when
 }

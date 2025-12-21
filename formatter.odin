@@ -28,12 +28,12 @@ FloatInfo :: struct {
 format_value :: proc(io: ^IO, value: Value) {
     switch _ in value.parsed {
     case int:    handle_integer(io, value)
-    case f64:    handle_float(io, value)
-    case bool:   handle_bool(io, value)
-    case string: handle_string(io, value)
-    case Date:   handle_date(io, value)
-    case ^List:  handle_list(io, value)
-    case ^Table: panic("TODO")
+    case f64:    handle_float  (io, value)
+    case bool:   handle_bool   (io, value)
+    case string: handle_string (io, value)
+    case Date:   handle_date   (io, value)
+    case ^List:  handle_list   (io, value)
+    case ^Table: handle_table  (io, value)
     }
 }
 
@@ -42,8 +42,7 @@ handle_integer :: proc(io: ^IO, value: Value) {
     // if value.hash == hash(value) do return    
     number := value.parsed.(int)
 
-    token  := value.tokens[0]^
-    file   := file_by_token(io, value.tokens[0])
+    token  := token_text(io, value.tokens[0])
 
     has_plus_sign  := first_rune(token) == '+'
     has_separators := contains(token, '_')
@@ -59,25 +58,24 @@ handle_integer :: proc(io: ^IO, value: Value) {
         { .Prefix } + ({ .Plus } if has_plus_sign else {})
     )
 
-    new_string := make_builder(file.alloc)
+    new_string := make_builder(io.alloc)
     info: IntegerInfo = { original = token, has_plus_sign = has_plus_sign, has_separators = has_separators, the_base = the_base }
     if io.formatter.integer_postprocessor == nil { io.formatter.integer_postprocessor = digit_grouper }
     io.formatter.integer_postprocessor(formatted, info, &new_string)
-    replace(value.tokens[0], string(new_string.buf[:]))
+    token_text_set(io, value.tokens[0], string(new_string.buf[:]))
 }
 
 @(private="file")
 handle_float :: proc(io: ^IO, value: Value) {
     // if value.hash == hash(value) do return    
     number := value.parsed.(f64)
-    token  := value.tokens[0]^
-    file   := file_by_token(io, value.tokens[0])
+    token  := token_text(io, value.tokens[0])
 
     if math.is_inf(number) {
         str := "-inf" if number == -Infinity else
                "+inf" if first_rune(token) == '+' else
                 "inf"
-        replace(value.tokens[0], string_clone(str, file.alloc)) 
+        token_text_set(io, value.tokens[0], string_clone(str, io.alloc)) 
         return
     }
 
@@ -85,7 +83,7 @@ handle_float :: proc(io: ^IO, value: Value) {
         str := "-nan" if first_rune(token) == '-' else
                "+nan" if first_rune(token) == '+' else
                 "nan"
-        replace(value.tokens[0], string_clone(str, file.alloc)) 
+        token_text_set(io, value.tokens[0], string_clone(str, io.alloc)) 
         return
     }
 
@@ -107,10 +105,10 @@ handle_float :: proc(io: ^IO, value: Value) {
 
     info: FloatInfo = { original = token, has_plus_sign = has_plus_sign, has_separators = has_separators, 
                         has_e = has_e, has_E = has_E, format = format, precision = precision }
-    new_string := make_builder(file.alloc)
+    new_string := make_builder(io.alloc)
     if io.formatter.float_postprocessor == nil { io.formatter.float_postprocessor = default_float_postprocessor }
     io.formatter.float_postprocessor(formatted, info, &new_string)
-    replace(value.tokens[0], string(new_string.buf[:]))
+    token_text_set(io, value.tokens[0], string(new_string.buf[:]))
 
     guess_precision :: proc(old: string, new: f64) -> int {
         num := eat(strconv.parse_f64(old))
@@ -132,7 +130,7 @@ handle_float :: proc(io: ^IO, value: Value) {
 @(private="file")
 handle_string :: proc(io: ^IO, value: Value) {
     text  := value.parsed.(string)
-    token := value.tokens[0]^
+    token := token_text(io, value.tokens[0])
 
     quote := "'''" if prefix(token, "'''") && suffix(token, "'''") else
              `"""` if prefix(token, `"""`) && suffix(token, `"""`) else
@@ -141,20 +139,12 @@ handle_string :: proc(io: ^IO, value: Value) {
     if  !any_of(first_rune(text), '\'', '"') || 
         !any_of(final_byte(text), '\'', '"') {
 
-        file    := file_by_token(io, value.tokens[0])
-        builder := make_builder(file.alloc)
+        builder := make_builder(io.alloc)
         write_string(&builder, quote[1:])
         enquote(&builder, text, token)
         write_string(&builder, quote[1:])
-        replace(value.tokens[0], string(builder.buf[:]))
+        token_text_set(io, value.tokens[0], string(builder.buf[:]))
     }
-}
-
-
-@(private="file")
-replace :: proc(value: ^string, with: string) {
-    fmt.println(value^, "->", with)
-    value^ = with
 }
 
 enquote :: proc(builder: ^Builder, raw: string, original: string = "a€↑∀▀ąЫα") {// {{{
@@ -213,27 +203,24 @@ enquote :: proc(builder: ^Builder, raw: string, original: string = "a€↑∀�
 @(private="file")
 handle_date :: proc(io: ^IO, value: Value) {
     date  := value.parsed.(Date)
-    file  := file_by_token(io, value.tokens[0])
     
-    fmt.println(date)
-
     if len(value.tokens) == 1 {
-        formatted, err := dates.partial_date_to_string(date, allocator = file.alloc)
+        formatted, err := dates.partial_date_to_string(date, allocator = io.alloc)
         if err == .NONE {
-            replace(value.tokens[0], formatted)
+            token_text_set(io, value.tokens[0], formatted)
         } else { panic("soooo... what do we do here, eh?") }
     } else {
         assert(len(value.tokens) == 2)        
         
-        formatted, err := dates.partial_date_to_string(date, allocator = file.alloc)
+        formatted, err := dates.partial_date_to_string(date, allocator = io.alloc)
         if err == .NONE {
             space := index_byte(formatted, ' ')
             if space == -1 {
-                replace(value.tokens[0], formatted)
-                for t in value.tokens[1:] { t^ = "" }
+                token_text_set(io, value.tokens[0], formatted)
+                for t in value.tokens[1:] { token_text_set(io, t, "") }
             } else {
-                replace(value.tokens[0], formatted[:space])
-                replace(value.tokens[1], formatted[space + 1:])
+                token_text_set(io, value.tokens[0], formatted[:space])
+                token_text_set(io, value.tokens[1], formatted[space + 1:])
             }
             
             
@@ -250,7 +237,7 @@ handle_bool :: proc(io: ^IO, value: Value) {
     if FALSE == "" { FALSE = string_clone("false", io.alloc) }
     
     is_true := value.parsed.(bool)
-    replace(value.tokens[0], TRUE if is_true else FALSE)
+    token_text_set(io, value.tokens[0], TRUE if is_true else FALSE)
 }
 
 @(private="file")
@@ -262,8 +249,14 @@ handle_list :: proc(io: ^IO, value: Value) {
     }
 }
 
-// handle_table
-
+@(private="file")
+handle_table :: proc(io: ^IO, value: Value) {
+    table := value.parsed.(^Table)
+    
+    for k, v in table^ {
+        format_value(io, v)
+    }
+}
 
 // ------------------------------- DEFAULT HANDLERS -------------------------------
 

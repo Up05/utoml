@@ -32,19 +32,29 @@ DateError :: enum {
 }
 
 // may be overwritten. Set to empty array to accept any time seperator
-time_separators: []string = {"t", "T", " "}
-offset_separators: []string = {"z", "Z", "+", "-"}
+time_separators  : [] string = { "t", "T", " " }
+offset_separators: [] string = { "z", "Z", "+", "-" }
 
 Date :: struct {
-    second:           f32,
-    is_date_local:    bool,
-    is_time_only :    bool,
-    is_date_only :    bool,
+    second        :   f32,
+    is_date_local :   bool,
+    is_time_only  :   bool,
+    is_date_only  :   bool,
 
-    year, month, day: int,
-    hour, minute:     int,
-    offset_hour:      int,
-    offset_minute:    int,
+    using _ : bit_field int {
+        year          : int | 16,
+        month         : int |  8, 
+        day           : int |  8,
+        hour          : int |  8,
+        minute        : int |  8,
+        offset_hour   : int |  8,
+        offset_minute : int |  8,
+    }, 
+
+    // year, month, day: int,
+    // hour, minute:     int,
+    // offset_hour:      int,
+    // offset_minute:    int,
 }
 
 from_string :: proc(date: string) -> (out: Date, err: DateError) {
@@ -159,17 +169,14 @@ to_string :: proc(
 ) {
     date := date
 
-    {
-        using date
-        if !between(year, 0, 9999) do return "", .YEAR_OUT_OF_BOUNDS
-        if !between(month, 0, 12) do return "", .MONTH_OUT_OF_BOUNDS
-        if !between(day, 0, days_in_month(year, month)) do return "", .DAY_OUT_OF_BOUNDS
-        if !between(hour, 0, 23) do return "", .HOUR_OUT_OF_BOUNDS
-        if !between(minute, 0, 59) do return "", .MINUTE_OUT_OF_BOUNDS
-        if !between(int(second), 0, 60) do return "", .SECOND_OUT_OF_BOUNDS
-        if !between(offset_hour, -23, 23) do return "", .OFFSET_HOUR_OUT_OF_BOUNDS
-        if !between(offset_minute, -59, 59) do return "", .OFFSET_MINUTE_OUT_OF_BOUNDS
-    }
+    if !between(date.year, 0, 9999) do return "", .YEAR_OUT_OF_BOUNDS
+    if !between(date.month, 0, 12) do return "", .MONTH_OUT_OF_BOUNDS
+    if !between(date.day, 0, days_in_month(date.year, date.month)) do return "", .DAY_OUT_OF_BOUNDS
+    if !between(date.hour, 0, 23) do return "", .HOUR_OUT_OF_BOUNDS
+    if !between(date.minute, 0, 59) do return "", .MINUTE_OUT_OF_BOUNDS
+    if !between(int(date.second), 0, 60) do return "", .SECOND_OUT_OF_BOUNDS
+    if !between(date.offset_hour, -23, 23) do return "", .OFFSET_HOUR_OUT_OF_BOUNDS
+    if !between(date.offset_minute, -59, 59) do return "", .OFFSET_MINUTE_OUT_OF_BOUNDS
 
     b: strings.Builder
     strings.builder_init_len_cap(&b, 0, 25)
@@ -197,17 +204,15 @@ to_string :: proc(
 
 partial_date_to_string :: proc(date: Date, time_sep := ' ', allocator := context.allocator) -> (out: string, err: DateError) {
     date := date
-    {
-        using date
-        if !between(year, 0, 9999) do return "", .YEAR_OUT_OF_BOUNDS
-        if !between(month, 0, 12) do return "", .MONTH_OUT_OF_BOUNDS
-        if !between(day, 0, days_in_month(year, month)) do return "", .DAY_OUT_OF_BOUNDS
-        if !between(hour, 0, 23) do return "", .HOUR_OUT_OF_BOUNDS
-        if !between(minute, 0, 59) do return "", .MINUTE_OUT_OF_BOUNDS
-        if !between(int(second), 0, 60) do return "", .SECOND_OUT_OF_BOUNDS
-        if !between(offset_hour, -23, 23) do return "", .OFFSET_HOUR_OUT_OF_BOUNDS
-        if !between(offset_minute, -59, 59) do return "", .OFFSET_MINUTE_OUT_OF_BOUNDS
-    }
+
+    if !between(date.year, 0, 9999) do return "", .YEAR_OUT_OF_BOUNDS
+    if !between(date.month, 0, 12) do return "", .MONTH_OUT_OF_BOUNDS
+    if !between(date.day, 0, days_in_month(date.year, date.month)) do return "", .DAY_OUT_OF_BOUNDS
+    if !between(date.hour, 0, 23) do return "", .HOUR_OUT_OF_BOUNDS
+    if !between(date.minute, 0, 59) do return "", .MINUTE_OUT_OF_BOUNDS
+    if !between(int(date.second), 0, 60) do return "", .SECOND_OUT_OF_BOUNDS
+    if !between(date.offset_hour, -23, 23) do return "", .OFFSET_HOUR_OUT_OF_BOUNDS
+    if !between(date.offset_minute, -59, 59) do return "", .OFFSET_MINUTE_OUT_OF_BOUNDS
 
     b: strings.Builder
     strings.builder_init_len_cap(&b, 0, 25, allocator)
