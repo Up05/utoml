@@ -51,9 +51,9 @@ string_clone    :: strings.clone
 eat :: proc(v: $T, e: any) -> T { return v }
 
 @private 
-make_arena :: proc() -> Allocator {
+make_arena :: proc(initial_size := mem.Megabyte) -> Allocator {
     arena := new(virtual.Arena)
-    _ = virtual.arena_init_growing(arena)
+    _ = virtual.arena_init_growing(arena, uint(initial_size))
     return virtual.arena_allocator(arena) 
 }
 
@@ -73,6 +73,15 @@ final_byte :: proc(s: string) -> byte {
 @private
 empty :: proc(text: ^string) -> bool {
     return text == nil || len(text^) == 0
+}
+
+@private
+index_from_ptrs :: proc(a: []$T, b: ^T) -> int {
+    base := cast(uintptr) raw_data(a)
+    offs := cast(uintptr) rawptr(b)
+    assert(base <= offs)
+    assert(base + uintptr(len(a)) > offs)
+    return int(offs - base) / size_of(T)
 }
 
 @private find      :: proc(a: string, b: string) -> int { i := strings.index(a, b); return i if i != -1 else len(a) }
@@ -167,7 +176,7 @@ to_hex_digit :: proc(digit: byte) -> byte {
 file_by_token :: proc(io: ^IO, token: ^string) -> ^File {
     in_addr :: proc(value: rawptr, base: rawptr, size: int) -> bool {
         value := uintptr(value); base := uintptr(base); size := uintptr(size)
-        return value >= base && value <= base + size
+        return value >= base && value < base + size
     }
 
     for &file in io.userfiles {

@@ -8,7 +8,8 @@ explained = true # third comment for explained
 bool = true
 str  = "ąwhatever sort of text..."
 
-dates_are_toml_like = 2025-11-22#L13:00:00+00:90 # and commentable
+dates_are_toml_like = 2025-11-22 13:00:00#L13:00:00+00:90 # and commentable
+
 
 [section1]
 
@@ -17,7 +18,8 @@ keybinds = [ "ctrl shift alt      super   L",
             
 table = {
     a = "AAA",
-    b = { c = "DDD" }
+    b = { c = "DDD" },
+    c = "CCC"
 }
 
 multiline = """

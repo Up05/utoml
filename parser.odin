@@ -19,6 +19,12 @@ IO :: struct {
     }
 }
 
+TokenHandle :: bit_field u64 {
+    hash  : u8  | 4,
+    token : u32 | 3,
+    file  : u8  | 1,
+}
+
 File :: struct {
     path   : string,
     text   : string,
@@ -117,15 +123,16 @@ handle_extra  :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 @(private="file")
 handle_section :: proc(io: ^IO, tokens: ^[] string, out: ^^Table) -> bool {
     if peek(tokens)^ != "[" do return false
-    next(tokens); // '['
+    open  := next(tokens); // '['
     name  := next(tokens)
-    table := new(Table, io.alloc)
+    table := new(Table, io.alloc) // should be io.alloc, yup
+    table^ = make(type_of(table^), io.alloc)
+    close := next(tokens); // ']'
 
     out^ = io.root
     out^^[name^] = { tokens = t(io, { name }), parsed = table } 
     out^ = table
 
-    next(tokens); // ']'
     return true
 }
 
@@ -146,6 +153,7 @@ handle_assign :: proc(io: ^IO, tokens: ^[] string, out: ^Table) -> bool {
         handle_list   (io, tokens, &value) ||
         handle_extra  (io, tokens, &value)
 
+
     out^[key^] = value
     return ok
 }
@@ -154,9 +162,10 @@ handle_assign :: proc(io: ^IO, tokens: ^[] string, out: ^Table) -> bool {
 handle_table :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     if peek(tokens)^ != "{" do return false
 
-    result := new(Table, context.allocator)
+    result := new(Table, io.alloc)
+    result^ = make(type_of(result^), io.alloc)
 
-    next(tokens) // '{'
+    open := next(tokens) // '{'
     for !any_of(peek(tokens)^, "}", "") {
 
         if peek(tokens)^ == "," { next(tokens); continue }
@@ -165,9 +174,10 @@ handle_table :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
             handle_assign(io, tokens, result) ||
             handle_extras(io, tokens, result)
     }
-    next(tokens) // '}'
+    close := next(tokens) // '}'
 
-    out^ = { tokens = t(io, { /* child tokens are stored in children! */ }), parsed = result }
+    out^ = { tokens = t(io, { open, close }), parsed = result }
+
     return true
 }
 
@@ -175,8 +185,8 @@ handle_table :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
 handle_list :: proc(io: ^IO, tokens: ^[] string, out: ^Value) -> bool {
     if peek(tokens)^ != "[" do return false
 
-    result := new(List, context.allocator)
-    all_tokens := make([dynamic] ^string, context.allocator) // TODO I hate my life.
+    result := new(List, io.alloc)
+    all_tokens := make([dynamic] ^string, io.alloc) // TODO I hate my life.
 
     next(tokens) // '['
     for !any_of(peek(tokens)^, "]", "") {

@@ -195,7 +195,7 @@ to_string :: proc(
     return strings.to_string(b), .NONE
 }
 
-partial_date_to_string :: proc(date: Date, time_sep := ' ',) -> (out: string, err: DateError) {
+partial_date_to_string :: proc(date: Date, time_sep := ' ', allocator := context.allocator) -> (out: string, err: DateError) {
     date := date
     {
         using date
@@ -210,7 +210,7 @@ partial_date_to_string :: proc(date: Date, time_sep := ' ',) -> (out: string, er
     }
 
     b: strings.Builder
-    strings.builder_init_len_cap(&b, 0, 25)
+    strings.builder_init_len_cap(&b, 0, 25, allocator)
 
 	_, frac := math.modf_f32(date.second)
 	timefmt := "%02d:%02d:%02.0f"
@@ -229,6 +229,7 @@ partial_date_to_string :: proc(date: Date, time_sep := ' ',) -> (out: string, er
     strings.write_rune(&b, time_sep)
 	fmt.sbprintf(&b, timefmt, date.hour, date.minute, date.second)
 
+    if date.offset_hour != 0 || date.offset_minute != 0 do date.is_date_local = false // ehhhhhhhhhhhhhhhh
     if date.is_date_local do return strings.to_string(b), .NONE
 
     if date.offset_hour == 0 && date.offset_minute == 0 do strings.write_rune(&b, 'Z')

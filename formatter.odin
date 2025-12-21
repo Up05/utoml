@@ -5,6 +5,8 @@ import "core:fmt"
 import "core:strconv"
 import "core:math"
 
+import "dates"
+
 IntegerInfo :: struct {
     original       : string, // original "-0_12_345" token
     has_plus_sign  : bool,   // +1234
@@ -23,11 +25,19 @@ FloatInfo :: struct {
 }
 
 
-format_value :: proc(value: Value) {
-
-
+format_value :: proc(io: ^IO, value: Value) {
+    switch _ in value.parsed {
+    case int:    handle_integer(io, value)
+    case f64:    handle_float(io, value)
+    case bool:   handle_bool(io, value)
+    case string: handle_string(io, value)
+    case Date:   handle_date(io, value)
+    case ^List:  handle_list(io, value)
+    case ^Table: panic("TODO")
+    }
 }
 
+@(private="file")
 handle_integer :: proc(io: ^IO, value: Value) {
     // if value.hash == hash(value) do return    
     number := value.parsed.(int)
@@ -56,6 +66,7 @@ handle_integer :: proc(io: ^IO, value: Value) {
     replace(value.tokens[0], string(new_string.buf[:]))
 }
 
+@(private="file")
 handle_float :: proc(io: ^IO, value: Value) {
     // if value.hash == hash(value) do return    
     number := value.parsed.(f64)
@@ -118,6 +129,7 @@ handle_float :: proc(io: ^IO, value: Value) {
     }
 }
 
+@(private="file")
 handle_string :: proc(io: ^IO, value: Value) {
     text  := value.parsed.(string)
     token := value.tokens[0]^
@@ -145,7 +157,7 @@ replace :: proc(value: ^string, with: string) {
     value^ = with
 }
 
-enquote :: proc(builder: ^Builder, raw: string, original: string = "a€↑∀▀ąЫα") {
+enquote :: proc(builder: ^Builder, raw: string, original: string = "a€↑∀▀ąЫα") {// {{{
     unescaped_groups: [len(UNICODE_BLOCKS)] int
     unescaped_group_len: int
 
@@ -194,10 +206,64 @@ enquote :: proc(builder: ^Builder, raw: string, original: string = "a€↑∀�
             }
         } else {
             write_rune(builder, r)
-            fmt.println(string(builder.buf[:]))
         }
     }
+}// }}}
+
+@(private="file")
+handle_date :: proc(io: ^IO, value: Value) {
+    date  := value.parsed.(Date)
+    file  := file_by_token(io, value.tokens[0])
+    
+    fmt.println(date)
+
+    if len(value.tokens) == 1 {
+        formatted, err := dates.partial_date_to_string(date, allocator = file.alloc)
+        if err == .NONE {
+            replace(value.tokens[0], formatted)
+        } else { panic("soooo... what do we do here, eh?") }
+    } else {
+        assert(len(value.tokens) == 2)        
+        
+        formatted, err := dates.partial_date_to_string(date, allocator = file.alloc)
+        if err == .NONE {
+            space := index_byte(formatted, ' ')
+            if space == -1 {
+                replace(value.tokens[0], formatted)
+                for t in value.tokens[1:] { t^ = "" }
+            } else {
+                replace(value.tokens[0], formatted[:space])
+                replace(value.tokens[1], formatted[space + 1:])
+            }
+            
+            
+
+        } else { panic("soooo... what do we do here, eh?") }
+
+    }
 }
+
+@(private="file")
+handle_bool :: proc(io: ^IO, value: Value) {
+    @static TRUE, FALSE: string
+    if TRUE  == "" { TRUE  = string_clone("true",  io.alloc) }
+    if FALSE == "" { FALSE = string_clone("false", io.alloc) }
+    
+    is_true := value.parsed.(bool)
+    replace(value.tokens[0], TRUE if is_true else FALSE)
+}
+
+@(private="file")
+handle_list :: proc(io: ^IO, value: Value) {
+    list := value.parsed.(^List)
+    
+    for value in list^ {
+        format_value(io, value)
+    }
+}
+
+// handle_table
+
 
 // ------------------------------- DEFAULT HANDLERS -------------------------------
 
