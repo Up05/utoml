@@ -18,6 +18,7 @@ IO :: struct {
     },
 
     formatter : struct {
+        heuristics            : [dynamic] Heuristics, // a stack
         integer_postprocessor : proc(this: string, info: IntegerInfo, out: ^Builder),  // = digit_grouper
         float_postprocessor   : proc(this: string, info: FloatInfo,   out: ^Builder)   // = nil
     },

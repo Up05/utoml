@@ -24,6 +24,13 @@ FloatInfo :: struct {
     precision      : int,    // guessed precision (or -1)
 }
 
+// best to have a separate pass
+// just for heuristics, like:
+// calculate_fmt_heuristics()
+Heuristics :: struct {
+    indents   : int,
+    multiline : bool,
+}
 
 format_value :: proc(io: ^IO, value: Value) {
     switch _ in value.parsed {

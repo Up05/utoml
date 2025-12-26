@@ -1,4 +1,4 @@
-value = -0x1123_456_789
+value  = -0x1123_456_789
 value2 = 88123_456_789.123
 
 # comment for explained
@@ -16,10 +16,11 @@ dates_are_toml_like = 2025-11-22 13:00:00#L13:00:00+00:90 # and commentable
 keybinds = [ "ctrl shift alt      super   L",
              "mod  shift option-r command L" ]
             
-table = {
     a = "AAA",
     b = { c = "DDD" },
     c = "CCC"
+table = {
+    a = 5,
 }
 
 multiline = """

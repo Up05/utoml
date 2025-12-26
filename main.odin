@@ -10,7 +10,7 @@ main :: proc() {
     io, ok := parse_file("example.toml", #load("example.toml"))
     assert(ok)
 
-    frigg.watch(io.root, true)
+    // frigg.watch(io.root, true)
 
     v := io.root["value"]
     v.parsed = 256
@@ -32,13 +32,16 @@ main :: proc() {
     format_value(&io, io.root["str"])
     format_value(&io, io.root["dates_are_toml_like"])
 
+    new_tokens := [?] string { "z", " ", "=", " ", "9" }
+    tb := io.root["section1"].parsed.(^Table)["table"]
+    table_append_tokens(&io, tb, new_tokens[:])
+
+
     fmt.println("\n-------------------------------\n")
     fmt.println(io.tokens)
     fmt.println("\n-------------------------------\n")
-    
-    // frigg.watch(io.root, true)
 
-    // get_common_element_separator(&io, io.root["section1"].parsed.(^Table)["table"].parsed.(^Table))
+    for t in io.tokens do fmt.print(t)
 
     } // /when
 }
@@ -46,31 +49,7 @@ main :: proc() {
 /*
     TODO HASH THE VALUES WHEN PARSING
 
-    serialize(basic value) ->
-        creates tokens
-        replaces old tokens
-
-    serialize(list) ->
-        creates tokens
-        ? creates formatting tokens <-- no !COPY WHITESPACE AROUND LAST ELEMENT?
-        injects tokens into the_file.tokens
-
-    serialize(table) ->
-        ???
-        kind of fucks everything else
-        due to multiple files...
-
-        for existing keys is fine actuallly
-
-        adding new keys could just be: [ '\n' key ' ' '=' ' ' serialize(basic value | list) ]
-        if serialize(table) in table, then just make it inline?
-*/
-
-/*
-    Or make an API for updating
+    make an API for updating
     values, that serializes and inserts in-real-time 
- 
-
- 
 */
 
