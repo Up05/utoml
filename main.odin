@@ -12,28 +12,34 @@ main :: proc() {
 
     // frigg.watch(io.root, true)
 
-    v := io.root["value"]
-    v.parsed = 256
-    map_insert(io.root, "value", v)
+    // v := io.root["value"]
+    // v.parsed = 256
+    // map_insert(io.root, "value", v)
 
-    v = io.root["str"]
-    v.parsed = "some oth\u222Bąčęąer\" text"
-    map_insert(io.root, "str", v)
+    // v = io.root["str"]
+    // v.parsed = "some oth\u222Bąčęąer\" text"
+    // map_insert(io.root, "str", v)
 
-    v = io.root["dates_are_toml_like"]
-    date := v.parsed.(Date)
-    date.day += 5
-    date.offset_hour += 13
-    v.parsed = date
-    map_insert(io.root, "dates_are_toml_like", v)
+    // v = io.root["dates_are_toml_like"]
+    // date := v.parsed.(Date)
+    // date.day += 5
+    // date.offset_hour += 13
+    // v.parsed = date
+    // map_insert(io.root, "dates_are_toml_like", v)
 
-    format_value(&io, io.root["value"])
-    format_value(&io, io.root["value2"])
-    format_value(&io, io.root["str"])
-    format_value(&io, io.root["dates_are_toml_like"])
+    // format_value(&io, io.root["value"])
+    // format_value(&io, io.root["value2"])
+    // format_value(&io, io.root["str"])
+    // format_value(&io, io.root["dates_are_toml_like"])
 
-    new_tokens := [?] string { "z", " ", "=", " ", "9" }
-    tb := io.root["section1"].parsed.(^Table)["table"]
+    new_tokens := [?] string { "x", " ", "=", " ", "9" }
+    tb := &io.root["section1"].parsed.(^Table)["table"]
+    table_append_tokens(&io, tb, new_tokens[:])
+    new_tokens  = [?] string { "y", " ", "=", " ", "9" }
+    table_append_tokens(&io, tb, new_tokens[:])
+    new_tokens  = [?] string { "z", " ", "=", " ", "9" }
+    table_append_tokens(&io, tb, new_tokens[:])
+    new_tokens  = [?] string { "w", " ", "=", " ", "9" }
     table_append_tokens(&io, tb, new_tokens[:])
 
 

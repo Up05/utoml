@@ -1,35 +1,5 @@
-value  = -0x1123_456_789
-value2 = 88123_456_789.123
-
-# comment for explained
-# second comment for explained
-explained = true # third comment for explained
-
-bool = true
-str  = "ąwhatever sort of text..."
-
-dates_are_toml_like = 2025-11-22 13:00:00#L13:00:00+00:90 # and commentable
-
-
 [section1]
 
-keybinds = [ "ctrl shift alt      super   L",
-             "mod  shift option-r command L" ]
-            
-    a = "AAA",
-    b = { c = "DDD" },
-    c = "CCC"
 table = {
     a = 5,
 }
-
-multiline = """
-some
-text
-""" 
-
-= = 5
-
-# mismatch = [ a = [ 5 ] ]
-# 'quoted key' = 5
-# warning = 'not a string

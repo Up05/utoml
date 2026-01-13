@@ -18,9 +18,9 @@ IO :: struct {
     },
 
     formatter : struct {
-        heuristics            : [dynamic] Heuristics, // a stack
         integer_postprocessor : proc(this: string, info: IntegerInfo, out: ^Builder),  // = digit_grouper
         float_postprocessor   : proc(this: string, info: FloatInfo,   out: ^Builder)   // = nil
+        _heuristics           : [dynamic] Heuristics, // a privately used stack stack
     },
 
     _curr : int,
@@ -46,6 +46,7 @@ ValueData :: union { int, f64, bool, string, Date, ^List, ^Table }
 Value :: struct {
     tokens : [] TokenHandle,  
     parsed : ValueData,
+    format : ^Heuristics,
     hash   : Hash, // xxhash of the original value
 }
 

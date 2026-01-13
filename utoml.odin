@@ -1,6 +1,8 @@
 package utoml
 
+import "base:runtime"
 import "core:fmt"
+import "frigg"
 
 @(private="file")
 find_identifier :: proc(tokens: [] string) -> int {
@@ -81,7 +83,6 @@ find_from_single_element :: proc(io: ^IO, into: Value) -> (indent: [] string, ne
     index   := int(back(v.tokens).token)
     sep_len := find_identifier(io.tokens[index + 1:]) 
     newline  = contains(io.tokens[index+1 : index+1 + sep_len], "\n")
-
 
     index   = int(into.tokens[0].token)
     sep_len = find_identifier(io.tokens[index + 1:]) 
@@ -166,14 +167,15 @@ final_fmt_tokens :: proc(io: ^IO, into: Value) -> (from, to: int, tokens: [] str
     return 
 }
 
-table_append_tokens :: proc(io: ^IO, into: Value, tokens: [] string) {
+table_append_tokens :: proc(io: ^IO, into: ^Value, tokens: [] string) {
+    if into == nil do return
     table, ok := into.parsed.(^Table)
     if !ok do return
 
     indent      := 4
     multiline   := true
 
-    from, to, old := final_fmt_tokens(io, into)
+    from, to, old := final_fmt_tokens(io, into^)
     remove_range(&io.tokens, from, to)
 
     sep1 := []string { ",", "\n", get_indent(indent) } if multiline else { ",", " " }
@@ -182,6 +184,8 @@ table_append_tokens :: proc(io: ^IO, into: Value, tokens: [] string) {
 
     sep2 := []string { "\n" }
     inject_at_elems(&io.tokens, from + len(sep1) + len(tokens), ..sep2)
+
+    into.tokens[len(into.tokens) - 1].token += i32(len(sep1) + len(tokens) + len(sep2) - (to - from))
 }
 
 
