@@ -32,6 +32,13 @@ main :: proc() {
     // format_value(&io, io.root["str"])
     // format_value(&io, io.root["dates_are_toml_like"])
 
+
+    for k, &v in io.root {
+        calculate_heuristics_recursively(&io, &v)
+    }
+
+    frigg.watch(io, true)
+
     new_tokens := [?] string { "x", " ", "=", " ", "9" }
     tb := &io.root["section1"].parsed.(^Table)["table"]
     table_append_tokens(&io, tb, new_tokens[:])
@@ -42,12 +49,13 @@ main :: proc() {
     new_tokens  = [?] string { "w", " ", "=", " ", "9" }
     table_append_tokens(&io, tb, new_tokens[:])
 
-
     fmt.println("\n-------------------------------\n")
     fmt.println(io.tokens)
     fmt.println("\n-------------------------------\n")
 
     for t in io.tokens do fmt.print(t)
+
+
 
     } // /when
 }

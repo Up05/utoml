@@ -208,6 +208,18 @@ token_text :: proc(io: ^IO, token: TokenHandle) -> string {
     }
     return ""
 }
+@private
+token_index :: proc(io: ^IO, token: TokenHandle) -> int {
+    if token.hash == 0 { return -1 }
+    if int(token.token) < len(io.hashes) && token.hash == io.hashes[token.token] {
+        return cast(int) token.token
+    } else {
+        for tok, i in io.tokens {
+            if io.hashes[i] == token.hash { return i }
+        }
+    }
+    return -1
+}
 
 @private
 hash_value :: proc(value: ValueData) -> Hash {
