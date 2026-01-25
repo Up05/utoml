@@ -33,9 +33,9 @@ main :: proc() {
     // format_value(&io, io.root["dates_are_toml_like"])
 
 
-    for k, &v in io.root {
-        calculate_heuristics_recursively(&io, &v)
-    }
+    // for k, &v in io.root {
+    //     calculate_heuristics_recursively(&io, &v)
+    // }
 
     frigg.watch(io, true)
 

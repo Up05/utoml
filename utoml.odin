@@ -176,16 +176,23 @@ table_append_tokens :: proc(io: ^IO, into: ^Value, tokens: [] string) {
     multiline   := true
 
     from, to, old := final_fmt_tokens(io, into^)
-    remove_range(&io.tokens, from, to)
+    // remove_range(&io.tokens, from, to)
 
-    sep1 := []string { ",", "\n", get_indent(indent) } if multiline else { ",", " " }
-    inject_at_elems(&io.tokens, from, ..sep1)
-    inject_at_elems(&io.tokens, from + len(sep1), ..tokens)
+    spacing := io._list_format_cache[into.format]
+    fmt.println(spacing)
+    inject_at_elems(&io.tokens, from, ..spacing)
+    inject_at_elems(&io.tokens, from + len(spacing), ..tokens)
 
-    sep2 := []string { "\n" }
-    inject_at_elems(&io.tokens, from + len(sep1) + len(tokens), ..sep2)
+    into.tokens[len(into.tokens) - 1].token += i32(len(spacing) + len(tokens))
 
-    into.tokens[len(into.tokens) - 1].token += i32(len(sep1) + len(tokens) + len(sep2) - (to - from))
+    // sep1 := []string { ",", "\n", get_indent(indent) } if multiline else { ",", " " }
+    // inject_at_elems(&io.tokens, from, ..sep1)
+    // inject_at_elems(&io.tokens, from + len(sep1), ..tokens)
+
+    // sep2 := []string { "\n" }
+    // inject_at_elems(&io.tokens, from + len(sep1) + len(tokens), ..sep2)
+
+    // into.tokens[len(into.tokens) - 1].token += i32(len(sep1) + len(tokens) + len(sep2) - (to - from))
 }
 
 

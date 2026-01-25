@@ -1,3 +1,3 @@
 #!/bin/sh
-odin run . -debug -o:none -linker:lld
-if [ -f utoml ]; then rm utoml; fi
+odin build . -debug -o:none -linker:lld && ./utoml
+# if [ -f utoml ]; then rm utoml; fi

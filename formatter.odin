@@ -24,11 +24,6 @@ FloatInfo :: struct {
     precision      : int,    // guessed precision (or -1)
 }
 
-Heuristics :: struct {
-    indentation : string,
-    multiline   : bool,
-}
-
 // TODO LATER MAKE HEURISTICS TREE and get_nearest_heuristic() -> get sibling || get parent | rec
 
 // THIS COULD ALL JUST BE IN THE PARSER
@@ -36,65 +31,63 @@ Heuristics :: struct {
 // I COULD ALSO JUST HAVE A SEPARATE GROUP(ED) ARRAY of like 8-255 heuristics...
 // with, instead of pointers, just i32/u8 indices...
 
-calculate_heuristics_recursively :: proc(io: ^IO, complex_value: ^Value) {
-    as_table, is_table := complex_value.parsed.(^Table)
-    as_array, is_array := complex_value.parsed.(^List)
-    if !is_table && !is_array { return }
-
-    lo := token_index(io, complex_value.tokens[0])
-    hi := token_index(io, complex_value.tokens[1])
-    if lo == -1 || hi == -1 { return }
-    if lo >= hi { return }
-
-    h: Heuristics = { }
-
-    if is_table && token_text(io, complex_value.tokens[1]) != "]" {
-        h = { indentation = "", multiline = true }
-
-    } if (is_table && len(as_table) < 1) ||
-       (is_array && len(as_array) < 1) {
-        if len(io.formatter._heuristics) > 0 { 
-            h = back(io.formatter._heuristics) 
-        } else {
-            h = { multiline = true, indentation = "    " }
-        }
-
-    } else {
-        prev_space: string
-
-        for i in lo+1..<hi {
-            token := io.tokens[i]
-            if any_of(first_rune(token), ..FORMATTING) {
-
-                if token == "\n" { h.multiline = true }
-
-                // THIS DOES NOT WORK BECAUSE SPACING TOKENS ARE ALSO MID ELEMENTS
-                // THIS COULD BE SOLVED BY JUST LOOPING OVER THE VALUES AND SUBBING token_index(parent start; child end)
-                // BUT THAT FEELS SLOW AS FUCK AND UNNECESSARY AND FUCKY
-                // I COULD ALSO MAKE COMMAS NECESSARY?
-                // AND THEN IT'S EASY <-- NEVER THE FUCK MIND, TABLES IN TABLES!!!
-                if any_of(first_rune(token), ..WHITESPACE) {
-                    // 2 matching consecutive identation tokens found, good enough. just exit.
-                    if prev_space == token { break } 
-                    prev_space = token
-                }  
-            }
-        }
-
-        h.indentation = prev_space
-    }
-
-    append(&io.formatter._heuristics, h)
-    defer pop(&io.formatter._heuristics)
-    
-    complex_value.format = new_clone(h, io.alloc)
-
-    if is_table { for _, &v in as_table { calculate_heuristics_recursively(io, &v) } }
-    if is_array { for &v, _ in as_array { calculate_heuristics_recursively(io, &v) } }
-
-}
-
-
+// calculate_heuristics_recursively :: proc(io: ^IO, complex_value: ^Value) {
+//     as_table, is_table := complex_value.parsed.(^Table)
+//     as_array, is_array := complex_value.parsed.(^List)
+//     if !is_table && !is_array { return }
+// 
+//     lo := token_index(io, complex_value.tokens[0])
+//     hi := token_index(io, complex_value.tokens[1])
+//     if lo == -1 || hi == -1 { return }
+//     if lo >= hi { return }
+// 
+//     h: Heuristics = { }
+// 
+//     if is_table && token_text(io, complex_value.tokens[1]) != "]" {
+//         h = { indentation = "", multiline = true }
+// 
+//     } if (is_table && len(as_table) < 1) ||
+//        (is_array && len(as_array) < 1) {
+//         if len(io.formatter._heuristics) > 0 { 
+//             h = back(io.formatter._heuristics) 
+//         } else {
+//             h = { multiline = true, indentation = "    " }
+//         }
+// 
+//     } else {
+//         prev_space: string
+// 
+//         for i in lo+1..<hi {
+//             token := io.tokens[i]
+//             if any_of(first_rune(token), ..FORMATTING) {
+// 
+//                 if token == "\n" { h.multiline = true }
+// 
+//                 // THIS DOES NOT WORK BECAUSE SPACING TOKENS ARE ALSO MID ELEMENTS
+//                 // THIS COULD BE SOLVED BY JUST LOOPING OVER THE VALUES AND SUBBING token_index(parent start; child end)
+//                 // BUT THAT FEELS SLOW AS FUCK AND UNNECESSARY AND FUCKY
+//                 // I COULD ALSO MAKE COMMAS NECESSARY?
+//                 // AND THEN IT'S EASY <-- NEVER THE FUCK MIND, TABLES IN TABLES!!!
+//                 if any_of(first_rune(token), ..WHITESPACE) {
+//                     // 2 matching consecutive identation tokens found, good enough. just exit.
+//                     if prev_space == token { break } 
+//                     prev_space = token
+//                 }  
+//             }
+//         }
+// 
+//         h.indentation = prev_space
+//     }
+// 
+//     append(&io.formatter._heuristics, h)
+//     defer pop(&io.formatter._heuristics)
+//     
+//     complex_value.format = new_clone(h, io.alloc)
+// 
+//     if is_table { for _, &v in as_table { calculate_heuristics_recursively(io, &v) } }
+//     if is_array { for &v, _ in as_array { calculate_heuristics_recursively(io, &v) } }
+// 
+// }
 
 format_value :: proc(io: ^IO, value: Value) {
     switch _ in value.parsed {

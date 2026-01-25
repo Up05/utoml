@@ -20,9 +20,10 @@ IO :: struct {
     formatter : struct {
         integer_postprocessor : proc(this: string, info: IntegerInfo, out: ^Builder),  // = digit_grouper
         float_postprocessor   : proc(this: string, info: FloatInfo,   out: ^Builder),  // = nil
-        _heuristics           : [dynamic] Heuristics, // a privately used stack
     },
 
+    // a set of space/linebreak/comma configurations found in the TOML's tables and arrays
+    _list_format_cache: [dynamic] [] string, // TODO: later move to .formatter?
     _curr : int,
 }
 
@@ -46,7 +47,7 @@ ValueData :: union { int, f64, bool, string, Date, ^List, ^Table }
 Value :: struct {
     tokens : [] TokenHandle,  
     parsed : ValueData,
-    format : ^Heuristics,
+    format : int,
     hash   : Hash, // xxhash of the original value
 }
 
@@ -173,6 +174,8 @@ handle_table :: proc(io: ^IO, out: ^Value) -> bool {
     result := new(Table, io.alloc)
     result^ = make(type_of(result^), io.alloc)
 
+    latest_formatting: Ring(int, 16)
+
     open := next(io) // '{'
     for !any_of(token_text(io, peek(io)), "}", "") {
 
@@ -181,10 +184,21 @@ handle_table :: proc(io: ^IO, out: ^Value) -> bool {
         ok := 
             handle_assign(io, result) ||
             handle_extras(io, result)
+
+        fmt := handle_formatting(io)
+        if fmt != -1 { ring_append(&latest_formatting, fmt) }
     }
     close := next(io) // '}'
-
+    
     out^ = make_value(io, { open, close }, result)
+    out.format = ring_get_most_frequent(latest_formatting)
+    
+    fmt.println(latest_formatting)
+    iterator: int
+    for v in ring_iterate(latest_formatting, &iterator) {
+        fmt.print(v, " ")
+    }
+    fmt.println("=", out.format)
 
     return true
 }
@@ -194,6 +208,7 @@ handle_list :: proc(io: ^IO, out: ^Value) -> bool {
     if token_text(io, peek(io)) != "[" do return false
 
     result := new(List, io.alloc)
+    latest_formatting: Ring(int, 16)
 
     open := next(io) // '['
     for !any_of(token_text(io, peek(io)), "]", "") {
@@ -212,10 +227,15 @@ handle_list :: proc(io: ^IO, out: ^Value) -> bool {
             handle_extra  (io, &element)
 
         append(result, element) 
+
+        fmt := handle_formatting(io)
+        if fmt != -1 { ring_append(&latest_formatting, fmt) }
     }
     close := next(io) // ']'
 
     out^ = make_value(io, { open, close }, result)
+    out.format = ring_get_most_frequent(latest_formatting)
+
     return true
 }
 
@@ -285,14 +305,59 @@ handle_string :: proc(io: ^IO, out: ^Value) -> bool {
     return true
 }
 
+@(private="file") // returns -1 if the return value should be discarded.
+handle_formatting :: proc(io: ^IO) -> (heuristic_cache_index: int) {
+    // initialization of the "global" cache
+    if len(io._list_format_cache) == 0 {
+        io._list_format_cache = make_dynamic_array_len_cap([dynamic][]string, allocator = io.alloc, len = 0, cap = 16)
+        append(&io._list_format_cache, []string {})
+    }
+    
+
+    formatting: [] string
+    for &token, i in io.tokens[io._curr:] {
+        if len(token) > 0 && any_of(token, "}", "]") { return -1 }
+
+        if len(token) > 0 && !contains(FORMATTING, first_rune(token)) { 
+            formatting = io.tokens[io._curr:io._curr + i]
+            break 
+        } 
+    }
+
+    if len(formatting) == 0 { return 0 }
+
+    cache_index := -1
+    for heuristic, i in io._list_format_cache {
+        matches := len(formatting) == len(heuristic)
+        if !matches { continue }
+
+        for token, j in formatting {
+            if token != heuristic[j] {
+                matches = false
+                break
+            }
+        }
+
+        if matches {
+            cache_index = i
+            break
+        }
+    }
+    
+    if cache_index == -1 {
+        append(&io._list_format_cache, formatting)
+        cache_index = len(io._list_format_cache) - 1
+    } 
+
+    return cache_index
+}
+
+
 @(private="file")
 peek :: proc(io: ^IO, n := 0) -> TokenHandle {
     n := n
     for &token, i in io.tokens[io._curr:] {
-        if len(token) > 0 && 
-           !contains(NONPRINTABLES, first_rune(token)) {
-            n -= 1
-        } 
+        if len(token) > 0 && !contains(NONPRINTABLES, first_rune(token)) { n -= 1 } 
         if n < 0 {
             i := io._curr + i
             h := io.hashes[i]

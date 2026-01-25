@@ -12,6 +12,7 @@ import "core:mem/virtual"
 import "core:hash/xxhash"
 import "core:math/rand"
 import os "core:os/os2"
+import sa "core:container/small_array"
 
 import "base:runtime"
 
@@ -49,6 +50,63 @@ last_index_byte :: strings.last_index_byte
 split_iterator  :: strings.split_iterator
 split           :: strings.split
 string_clone    :: strings.clone
+
+is_power_of_two :: proc "contextless" ($N: int) -> bool {
+    return N != 0   &&   N & (N - 1) == 0
+}
+
+Ring :: struct($TYPE: typeid, $CAPACITY: int) {
+    data   : [CAPACITY] TYPE,
+    cursor : int,
+    len    : int,
+}
+
+ring_append :: proc(ring: ^Ring($T, $N), element: T) {
+    #assert(N != 0,           "Ring's capacity MUST be a power of 2 (but instead is 0)")
+    #assert(N & (N - 1) == 0, "Ring's capacity MUST be a power of 2")
+
+    ring.data[ring.cursor] = element
+    ring.cursor += 1
+    ring.cursor &= N - 1
+
+    ring.len = min(N, ring.len + 1)
+}
+
+ring_iterate :: proc(ring: Ring($T, $N), iterator: ^int) -> (value: T, ok: bool) {
+    #assert(N != 0,           "Ring's capacity MUST be a power of 2 (but instead is 0)")
+    #assert(N & (N - 1) == 0, "Ring's capacity MUST be a power of 2")
+
+    if iterator^ >= ring.len { return {}, false }
+
+    value = ring.data[(ring.cursor - iterator^ - 1) & (N - 1)]
+    iterator^ += 1
+    return value, true
+}
+
+ring_get_most_frequent :: proc(ring: Ring($T, $N)) -> T {
+    // could do the counts[len(io._unique_heuristics)], but whatever...
+
+    counts: [N] struct { v: T, n: int }
+
+    iterator: int
+    for value in ring_iterate(ring, &iterator) {
+        for &counter in counts {
+            if counter.v == value || counter.n == 0 {
+                counter.v = value
+                counter.n += 1
+                break
+            }
+        }
+    }
+    
+    most_frequent: struct { v: T, n: int }
+    for counter in counts {
+        if counter.n > most_frequent.n {
+            most_frequent = counter
+        }
+    }
+    return most_frequent.v
+}
 
 @private 
 eat :: proc(v: $T, e: any) -> T { return v }
